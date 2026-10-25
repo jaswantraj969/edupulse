@@ -30,6 +30,15 @@ export class ApiError extends Error {
   }
 }
 
+/** Read and discard a body we do not need, so the browser can complete and reuse the request. */
+async function drain(response: Response): Promise<void> {
+  try {
+    await response.arrayBuffer()
+  } catch {
+    // already consumed or aborted
+  }
+}
+
 let accessToken: string | null = null
 let refreshing: Promise<boolean> | null = null
 let onSessionExpired: (() => void) | null = null
@@ -59,6 +68,7 @@ export function refreshSession(): Promise<boolean> {
   refreshing ??= fetch(`${API_BASE}/auth/refresh`, { method: 'POST', credentials: 'same-origin' })
     .then(async (response) => {
       if (!response.ok) {
+        await drain(response)
         setAccessToken(null)
         return false
       }
@@ -109,11 +119,17 @@ export async function request<T>(path: string, options: RequestOptions = {}, ret
   })
 
   if (response.status === 401 && retry && !path.startsWith('/auth/')) {
-    if (await refreshSession()) return request<T>(path, options, false)
+    if (await refreshSession()) {
+      await drain(response)
+      return request<T>(path, options, false)
+    }
     onSessionExpired?.()
   }
   if (!response.ok) throw await parseError(response)
-  if (response.status === 204) return undefined as T
+  if (response.status === 204) {
+    await drain(response)
+    return undefined as T
+  }
   if (options.raw) return (await response.text()) as T
   return (await response.json()) as T
 }

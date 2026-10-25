@@ -13,7 +13,7 @@ const STATUSES: AttendanceStatus[] = ['present', 'absent', 'late', 'excused']
 const SELECTED: Record<AttendanceStatus, string> = {
   present: 'border-emerald-700 bg-emerald-700 text-white dark:border-emerald-400 dark:bg-emerald-400 dark:text-slate-950',
   absent: 'border-red-700 bg-red-700 text-white dark:border-red-400 dark:bg-red-400 dark:text-slate-950',
-  late: 'border-amber-600 bg-amber-600 text-white dark:border-amber-300 dark:bg-amber-300 dark:text-slate-950',
+  late: 'border-amber-700 bg-amber-700 text-white dark:border-amber-300 dark:bg-amber-300 dark:text-slate-950',
   excused: 'border-indigo-700 bg-indigo-700 text-white dark:border-indigo-300 dark:bg-indigo-300 dark:text-slate-950',
 }
 

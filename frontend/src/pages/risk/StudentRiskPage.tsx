@@ -1,6 +1,7 @@
 import { useQuery } from '@tanstack/react-query'
 import { lazy, Suspense, useMemo } from 'react'
 import { Link, useParams } from 'react-router'
+import { DeferredRender } from '@/components/DeferredRender'
 import { BackLink, EmptyState, ErrorState, LoadingState, PageHeader } from '@/components/ui'
 import { api } from '@/lib/api'
 import { formatDate, fullName, percent } from '@/lib/format'
@@ -137,14 +138,18 @@ export default function StudentRiskPage() {
             {attendance.isError ? (
               <ErrorState error={attendance.error} />
             ) : attendancePoints.length ? (
-              <TrendChart title="Attendance rate by month" seriesName="Attendance" data={attendancePoints} asOfMonth={asOfMonth} floor={0.5} />
+              <DeferredRender minHeight="16rem" label="Attendance chart">
+                <TrendChart title="Attendance rate by month" seriesName="Attendance" data={attendancePoints} asOfMonth={asOfMonth} floor={0.5} />
+              </DeferredRender>
             ) : (
               <EmptyState title={attendance.isPending ? 'Loading attendance…' : 'No attendance recorded'} />
             )}
             {grades.isError ? (
               <ErrorState error={grades.error} />
             ) : gradePoints.length ? (
-              <TrendChart title="Average grade by month" seriesName="Average grade" data={gradePoints} asOfMonth={asOfMonth} />
+              <DeferredRender minHeight="16rem" label="Grade chart">
+                <TrendChart title="Average grade by month" seriesName="Average grade" data={gradePoints} asOfMonth={asOfMonth} />
+              </DeferredRender>
             ) : (
               <EmptyState title={grades.isPending ? 'Loading grades…' : 'No grades recorded'} />
             )}

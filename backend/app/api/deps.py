@@ -8,6 +8,7 @@ from sqlalchemy.orm import Session
 
 from app.core.config import Settings
 from app.core.errors import AppError, forbidden
+from app.core.logging import user_id_var
 from app.core.rate_limit import LoginRateLimiter
 from app.core.security import decode_access_token
 from app.db.session import get_db
@@ -47,6 +48,7 @@ def get_current_user(
     user = db.get(User, claims.user_id)
     if user is None or not user.is_active:
         raise _unauthorized("Invalid or expired token")
+    user_id_var.set(user.id)  # attached to every log line of this request
     return user
 
 

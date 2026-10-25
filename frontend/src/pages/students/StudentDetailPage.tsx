@@ -55,7 +55,7 @@ function GradesCard({ id }: { id: number }) {
       ) : query.data.length === 0 ? (
         <EmptyState title="No grades yet" />
       ) : (
-        <div className="max-h-96 overflow-auto">
+        <div tabIndex={0} role="region" aria-label="Grades by assessment (scrollable)" className="max-h-96 overflow-auto">
           <table className="w-full text-left text-sm">
             <caption className="sr-only">Grades by assessment</caption>
             <thead className="sticky top-0 bg-white text-xs text-slate-600 uppercase dark:bg-slate-900 dark:text-slate-400">

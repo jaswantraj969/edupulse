@@ -19,6 +19,8 @@ from app.api.routes import (
 )
 from app.core.config import Settings, get_settings
 from app.core.errors import install_error_handlers
+from app.core.logging import configure_logging
+from app.core.middleware import RequestContextMiddleware, SecurityHeadersMiddleware
 from app.core.rate_limit import LoginRateLimiter
 
 API_PREFIX = "/api/v1"
@@ -27,6 +29,7 @@ API_PREFIX = "/api/v1"
 def create_app(settings: Settings | None = None) -> FastAPI:
     settings = settings or get_settings()
     settings.require_jwt_secret()  # fail fast at startup rather than on first login
+    configure_logging(settings.log_level, settings.log_json)
     app = FastAPI(
         title="EduPulse API",
         version="0.1.0",
@@ -45,7 +48,11 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         allow_credentials=True,
         allow_methods=["GET", "POST", "PUT", "PATCH", "DELETE"],
         allow_headers=["Authorization", "Content-Type", "X-Request-ID"],
+        expose_headers=["X-Request-ID"],
     )
+    # Added last = outermost: the request id exists before CORS and every handler run.
+    app.add_middleware(SecurityHeadersMiddleware, hsts=settings.cookie_secure)
+    app.add_middleware(RequestContextMiddleware)
     install_error_handlers(app)
     routers = (
         health.router,

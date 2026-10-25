@@ -107,7 +107,7 @@ export function CsvImportDialog({ open, onClose, resource }: Props) {
         <div role="alert" className="mt-4">
           <p className="font-medium text-red-800 dark:text-red-300">{message}</p>
           {rowErrors.length > 0 && (
-            <div className="mt-2 max-h-56 overflow-auto rounded-lg border border-slate-200 dark:border-slate-700">
+            <div tabIndex={0} role="region" aria-label="Rows with errors" className="mt-2 max-h-56 overflow-auto rounded-lg border border-slate-200 dark:border-slate-700">
               <table className="w-full text-left text-xs">
                 <caption className="sr-only">Rows with errors</caption>
                 <thead className="bg-slate-50 dark:bg-slate-800">

@@ -1376,3 +1376,364 @@ No new upgrade operations detected.
 ```
 
 Fixed during this milestone: (1) list sorting tie-breaker now follows the sort direction (audit 'newest first' was unstable for equal timestamps); (2) after a deliberate sign-out the next user was redirected to the previous user's last page — the auth guard now keeps 'return to' state only when a session expired; (3) an e2e race (reading class options before they loaded) was fixed in the test by waiting for the options. The e2e suite was then run three times in a row: 4 passed each time.
+
+## M7 — Hardening (2026-10-25)
+
+Scope: Structured JSON logs with request ids (X-Request-ID echoed, sanitised) and user ids; consistent JSON errors incl. request_id, generic 500s without internals; /health (liveness) and /ready (DB + model) probes wired into Docker health checks; security headers on API and nginx (CSP, frame, sniff, referrer, permissions, COOP, no-store; HSTS when Secure cookies); dependency audits; axe on 14 screens x light/dark x 375/1440 px; Lighthouse mobile on the Docker build.
+
+### Gate output (scripts/gate.sh --e2e; includes 56 axe scans)
+
+```text
+$ (cd backend && uv run ruff check .)
+All checks passed!
+[exit 0]
+
+$ (cd backend && uv run ruff format --check .)
+77 files already formatted
+[exit 0]
+
+$ (cd backend && uv run mypy app tests)
+Success: no issues found in 76 source files
+
+[exit 0]
+
+$ (cd backend && uv run pytest --cov --cov-report=term-missing -p no:cacheprovider)
+........................................................................ [ 43%]
+
+........................................................................ [ 86%]
+
+......................                                                   [100%]
+
+=============================== tests coverage ================================
+
+______________ coverage: platform win32, python 3.12.13-final-0 _______________
+
+
+
+Name                            Stmts   Miss Branch BrPart  Cover   Missing
+
+---------------------------------------------------------------------------
+
+app\api\routes\assessments.py     130      1     42      2    98%   63, 177->176
+
+app\api\routes\auth.py             75      0     18      1    99%   136->142
+
+app\api\routes\catalog.py          42      0      4      1    98%   44->46
+
+app\api\routes\classes.py         152      0     40      1    99%   163->167
+
+app\api\routes\dashboard.py        55      0     20      3    96%   51->53, 73->75, 100->99
+
+app\api\routes\staff.py            64      0      6      3    96%   67->69, 69->71, 71->73
+
+app\api\routes\students.py        133      1     24      1    99%   89
+
+app\core\logging.py                35      1     10      1    96%   28
+
+app\seed.py                       206      3     62      2    98%   182-183, 452
+
+app\services\auth.py               49      1     14      2    95%   41, 92->exit
+
+app\services\csv_io.py            115      1     42      3    97%   55->57, 57->59, 89
+
+app\services\risk.py              150      2     30      2    98%   136, 214
+
+---------------------------------------------------------------------------
+
+TOTAL                            2647     10    442     22    99%
+
+
+
+39 files skipped due to complete coverage.
+
+166 passed in 100.31s (0:01:40)
+
+[exit 0]
+
+$ (cd ml && uv run ruff check .)
+All checks passed!
+[exit 0]
+
+$ (cd ml && uv run ruff format --check .)
+16 files already formatted
+[exit 0]
+
+$ (cd ml && uv run mypy edupulse_ml tests)
+Success: no issues found in 14 source files
+
+[exit 0]
+
+$ (cd ml && uv run pytest --cov -p no:cacheprovider)
+...................                                                      [100%]
+
+=============================== tests coverage ================================
+
+______________ coverage: platform win32, python 3.12.13-final-0 _______________
+
+
+
+Name                       Stmts   Miss Branch BrPart  Cover
+
+------------------------------------------------------------
+
+edupulse_ml\__init__.py        1      0      0      0   100%
+
+edupulse_ml\data.py           57      5     18      1    89%
+
+edupulse_ml\evaluate.py       45      1     12      1    96%
+
+edupulse_ml\explain.py        17      0      2      0   100%
+
+edupulse_ml\export.py         14     14      2      0     0%
+
+edupulse_ml\features.py       21      0      0      0   100%
+
+edupulse_ml\report.py         34      0     14      1    98%
+
+edupulse_ml\reproduce.py      31      9     14      0    76%
+
+edupulse_ml\train.py         135      1     22      2    98%
+
+------------------------------------------------------------
+
+TOTAL                        355     30     84      5    91%
+
+19 passed in 72.93s (0:01:12)
+
+[exit 0]
+
+$ (cd frontend && npm run lint)
+
+> edupulse-web@0.1.0 lint
+> eslint . --max-warnings=0
+
+[exit 0]
+
+$ (cd frontend && npm run typecheck)
+
+> edupulse-web@0.1.0 typecheck
+> tsc -b --noEmit
+
+[exit 0]
+
+$ (cd frontend && npm test)
+
+> edupulse-web@0.1.0 test
+> vitest run
+
+
+ RUN  v5.0.5 <repo>/frontend
+
+Not implemented: navigation to another Document
+
+ Test Files  8 passed (8)
+      Tests  39 passed (39)
+   Start at  19:59:19
+   Duration  6.97s (environment 51%, tests 30%, import 8%, setup 8%, transform 1%, worker 1%)
+
+[exit 0]
+
+$ (cd frontend && npm run build)
+
+> edupulse-web@0.1.0 build
+> tsc -b && vite build
+
+vite v8.3.5 building client environment for production...
+transforming...
+✓ 780 modules transformed.
+rendering chunks...
+computing gzip size...
+dist/index.html                              0.61 kB │ gzip:   0.36 kB
+dist/assets/index-r9nMhY3h.css              38.25 kB │ gzip:   7.81 kB
+dist/assets/coerce-CHtFiwVw.js               0.09 kB │ gzip:   0.10 kB
+dist/assets/queries-D8vtpeqI.js              0.51 kB │ gzip:   0.27 kB
+dist/assets/classSchema-D5ATFxNC.js          0.57 kB │ gzip:   0.33 kB
+dist/assets/DeferredRender-CGSRHVuI.js       0.61 kB │ gzip:   0.38 kB
+dist/assets/ClassPicker-CnXwr14W.js          0.66 kB │ gzip:   0.41 kB
+dist/assets/format-DqLuBCE3.js               0.66 kB │ gzip:   0.44 kB
+dist/assets/schemas-sqRQT-v-.js              0.93 kB │ gzip:   0.48 kB
+dist/assets/RecordFormDialog-DUfLLxzb.js     1.83 kB │ gzip:   0.98 kB
+dist/assets/LoginPage-CGeTjuvy.js            1.98 kB │ gzip:   1.02 kB
+dist/assets/AuditLogPage-E76Bxo7n.js         2.04 kB │ gzip:   1.04 kB
+dist/assets/ListToolbar-CwzkzizX.js          2.06 kB │ gzip:   0.94 kB
+dist/assets/useMutation-CPh81u1u.js          2.32 kB │ gzip:   0.97 kB
+dist/assets/RiskParts-BdheHJRv.js            2.59 kB │ gzip:   0.97 kB
+dist/assets/ClassesPage-D43GoEgN.js          2.79 kB │ gzip:   1.32 kB
+dist/assets/DashboardPage-iZphQuxR.js        2.99 kB │ gzip:   1.24 kB
+dist/assets/CsvImportDialog-CustKNbb.js      3.07 kB │ gzip:   1.32 kB
+dist/assets/DataTable-iyqIzl6l.js            3.21 kB │ gzip:   1.23 kB
+dist/assets/StudentsListPage-URdAojF8.js     3.24 kB │ gzip:   1.48 kB
+dist/assets/RiskListPage-DlkQftTd.js         3.56 kB │ gzip:   1.71 kB
+dist/assets/ClassDetailPage-BdDe4LZ9.js      4.61 kB │ gzip:   1.81 kB
+dist/assets/StaffPage-ClizUYX2.js            4.67 kB │ gzip:   1.97 kB
+dist/assets/TeachersPage-CGJQmGEl.js         4.86 kB │ gzip:   2.02 kB
+dist/assets/AttendancePage-C6co3xBa.js       4.91 kB │ gzip:   1.99 kB
+dist/assets/StudentDetailPage-CC5Lte0Q.js    5.14 kB │ gzip:   1.91 kB
+dist/assets/StudentForm-C9gakEZh.js          5.97 kB │ gzip:   2.22 kB
+dist/assets/StudentRiskPage-BycqRfBw.js      6.14 kB │ gzip:   2.26 kB
+dist/assets/RiskTrendCharts-oHxtjvnt.js      6.55 kB │ gzip:   2.75 kB
+dist/assets/GradesPage-BhRi_vq4.js           7.00 kB │ gzip:   2.69 kB
+dist/assets/useQuery-B86WbdLh.js             7.97 kB │ gzip:   2.94 kB
+dist/assets/jsx-runtime-Wy9s6hX0.js          8.91 kB │ gzip:   3.39 kB
+dist/assets/DashboardCharts-BKet6WYV.js     24.30 kB │ gzip:   8.17 kB
+dist/assets/Field-BARBEQsd.js              124.54 kB │ gzip:  37.53 kB
+dist/assets/useElementWidth-MynoTyFU.js    347.70 kB │ gzip: 101.49 kB
+dist/assets/index-DOKzYCNu.js              352.85 kB │ gzip: 110.93 kB
+
+✓ built in 639ms
+[exit 0]
+
+$ (cd frontend && npx playwright test --reporter=list)
+
+Running 8 tests using 1 worker
+
+(node:16460) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+[axe] light login: 29 rules passed; violations: none
+[axe] light dashboard: 32 rules passed; violations: none
+[axe] light students: 38 rules passed; violations: none
+[axe] light student detail: 42 rules passed; violations: none
+[axe] light student form: 35 rules passed; violations: none
+[axe] light teachers: 39 rules passed; violations: none
+[axe] light staff: 39 rules passed; violations: none
+[axe] light classes: 36 rules passed; violations: none
+[axe] light class detail: 34 rules passed; violations: none
+[axe] light attendance: 36 rules passed; violations: none
+[axe] light grades: 36 rules passed; violations: none
+[axe] light early warning: 42 rules passed; violations: none
+[axe] light student risk: 39 rules passed; violations: none
+[axe] light audit log: 38 rules passed; violations: none
+  ok 1 [mobile-375] › e2e\a11y.spec.ts:58:3 › no serious accessibility violations (light mode) (36.1s)
+[axe] dark login: 29 rules passed; violations: none
+[axe] dark dashboard: 32 rules passed; violations: none
+[axe] dark students: 38 rules passed; violations: none
+[axe] dark student detail: 42 rules passed; violations: none
+[axe] dark student form: 35 rules passed; violations: none
+[axe] dark teachers: 39 rules passed; violations: none
+[axe] dark staff: 39 rules passed; violations: none
+[axe] dark classes: 36 rules passed; violations: none
+[axe] dark class detail: 34 rules passed; violations: none
+[axe] dark attendance: 36 rules passed; violations: none
+[axe] dark grades: 36 rules passed; violations: none
+[axe] dark early warning: 42 rules passed; violations: none
+[axe] dark student risk: 39 rules passed; violations: none
+[axe] dark audit log: 38 rules passed; violations: none
+  ok 2 [mobile-375] › e2e\a11y.spec.ts:58:3 › no serious accessibility violations (dark mode) (35.8s)
+  ok 3 [mobile-375] › e2e\core-flow.spec.ts:8:1 › login → add student → mark attendance → enter grade (5.2s)
+  ok 4 [mobile-375] › e2e\early-warning.spec.ts:4:1 › teacher reviews early-warning scores; the views are audited (7.5s)
+(node:7740) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+[axe] light login: 29 rules passed; violations: none
+[axe] light dashboard: 30 rules passed; violations: none
+[axe] light students: 37 rules passed; violations: none
+[axe] light student detail: 40 rules passed; violations: none
+[axe] light student form: 33 rules passed; violations: none
+[axe] light teachers: 38 rules passed; violations: none
+[axe] light staff: 38 rules passed; violations: none
+[axe] light classes: 34 rules passed; violations: none
+[axe] light class detail: 32 rules passed; violations: none
+[axe] light attendance: 34 rules passed; violations: none
+[axe] light grades: 34 rules passed; violations: none
+[axe] light early warning: 41 rules passed; violations: none
+[axe] light student risk: 38 rules passed; violations: none
+[axe] light audit log: 37 rules passed; violations: none
+  ok 5 [desktop-1440] › e2e\a11y.spec.ts:58:3 › no serious accessibility violations (light mode) (34.9s)
+[axe] dark login: 29 rules passed; violations: none
+[axe] dark dashboard: 30 rules passed; violations: none
+[axe] dark students: 37 rules passed; violations: none
+[axe] dark student detail: 40 rules passed; violations: none
+[axe] dark student form: 33 rules passed; violations: none
+[axe] dark teachers: 38 rules passed; violations: none
+[axe] dark staff: 38 rules passed; violations: none
+[axe] dark classes: 34 rules passed; violations: none
+[axe] dark class detail: 32 rules passed; violations: none
+[axe] dark attendance: 34 rules passed; violations: none
+[axe] dark grades: 34 rules passed; violations: none
+[axe] dark early warning: 41 rules passed; violations: none
+[axe] dark student risk: 38 rules passed; violations: none
+[axe] dark audit log: 37 rules passed; violations: none
+  ok 6 [desktop-1440] › e2e\a11y.spec.ts:58:3 › no serious accessibility violations (dark mode) (35.0s)
+  ok 7 [desktop-1440] › e2e\core-flow.spec.ts:8:1 › login → add student → mark attendance → enter grade (5.9s)
+  ok 8 [desktop-1440] › e2e\early-warning.spec.ts:4:1 › teacher reviews early-warning scores; the views are audited (6.8s)
+
+  8 passed (2.9m)
+[exit 0]
+
+GATE RESULT: PASS
+```
+
+### Dependency audit
+
+```text
+$ (cd backend && uv export --frozen --format requirements-txt --all-groups --no-emit-project -o <tmp>/req-backend.txt) && (cd backend && uv run pip-audit -r <tmp>/req-backend.txt --strict --progress-spinner off)
+No known vulnerabilities found
+
+[exit 0]
+
+$ (cd ml && uv export --frozen --format requirements-txt --all-groups --no-emit-project -o <tmp>/req-ml.txt) && (cd backend && uv run pip-audit -r <tmp>/req-ml.txt --strict --progress-spinner off)
+No known vulnerabilities found
+
+[exit 0]
+
+$ (cd frontend && npm audit)
+found 0 vulnerabilities
+[exit 0]
+$ (cd frontend && npm audit --omit=dev)
+found 0 vulnerabilities
+[exit 0]
+```
+
+### Headers, readiness and structured logs on the Docker build
+
+```text
+$ curl -sI http://127.0.0.1:8088/students ; curl -sI <asset> ; curl -si http://127.0.0.1:8088/api/v1/ready   (after the nginx header refactor)
+HTTP/1.1 200 OK
+X-Content-Type-Options: nosniff
+X-Frame-Options: DENY
+Referrer-Policy: strict-origin-when-cross-origin
+Permissions-Policy: camera=(), microphone=(), geolocation=(), payment=()
+Cross-Origin-Opener-Policy: same-origin
+Content-Security-Policy: default-src 'self'; img-src 'self' data:; style-src 'self' 'unsafe-inline'; script-src 'self'; connect-src 'self'; frame-ancestors 'none'; base-uri 'self'; form-action 'self'
+Cache-Control: no-cache
+
+HTTP/1.1 200 OK
+X-Frame-Options: DENY
+Cache-Control: public, max-age=31536000, immutable
+Content-Encoding: gzip
+
+HTTP/1.1 200 OK
+x-frame-options: DENY
+content-security-policy: default-src 'none'; frame-ancestors 'none'; base-uri 'none'
+cache-control: no-store
+x-request-id: d7c6767d25bb85d5355465d566a0a5e3
+{"status":"ready","checks":{"database":"ok","model":"ok (v1.0.0)"}}
+
+$ docker compose ps
+edupulse-api-1 Up 2 hours (healthy)
+edupulse-db-1 Up 4 hours (healthy)
+edupulse-web-1 Up 22 minutes
+
+$ docker compose logs api --tail 1
+{"ts": "2026-10-25T15:03:05.443+00:00", "level": "INFO", "logger": "edupulse.access", "message": "request", "request_id": "d7c6767d25bb85d5355465d566a0a5e3", "method": "GET", "path": "/api/v1/ready", "status": 200, "duration_ms": 6.8, "client": "172.18.0.1"}
+```
+
+### Lighthouse (mobile preset, simulated throttling) on the Docker build
+
+```text
+$ (cd frontend && E2E_BASE_URL=http://127.0.0.1:8088 E2E_PASSWORD=<demo password> node scripts/lighthouse.mjs)   # built app via docker compose, freshly seeded
+┌─────────┬─────────────────┬──────────────────────────────────────────┬─────────────┬───────────────┬────────────────┬─────┬─────────┬─────────┬──────────┬─────┐
+│ (index) │ page            │ path                                     │ performance │ accessibility │ best_practices │ seo │ fcp     │ lcp     │ tbt      │ cls │
+├─────────┼─────────────────┼──────────────────────────────────────────┼─────────────┼───────────────┼────────────────┼─────┼─────────┼─────────┼──────────┼─────┤
+│ 0       │ 'login'         │ '/login'                                 │ 95          │ 100           │ 92             │ 91  │ '2.1 s' │ '2.5 s' │ '90 ms'  │ '0' │
+│ 1       │ 'dashboard'     │ '/'                                      │ 82          │ 100           │ 100            │ 91  │ '1.9 s' │ '2.2 s' │ '620 ms' │ '0' │
+│ 2       │ 'students'      │ '/students'                              │ 92          │ 100           │ 100            │ 91  │ '2.0 s' │ '2.4 s' │ '230 ms' │ '0' │
+│ 3       │ 'attendance'    │ '/attendance?class_id=1&date=2025-10-07' │ 96          │ 100           │ 96             │ 91  │ '2.0 s' │ '2.4 s' │ '100 ms' │ '0' │
+│ 4       │ 'early-warning' │ '/early-warning?class_id=1'              │ 96          │ 100           │ 96             │ 91  │ '2.0 s' │ '2.4 s' │ '90 ms'  │ '0' │
+│ 5       │ 'student-risk'  │ '/early-warning/students/429'            │ 96          │ 100           │ 100            │ 91  │ '1.9 s' │ '2.4 s' │ '70 ms'  │ '0' │
+└─────────┴─────────────────┴──────────────────────────────────────────┴─────────────┴───────────────┴────────────────┴─────┴─────────┴─────────┴──────────┴─────┘
+Lighthouse 13.5.0, form factor: mobile
+Below target (90): dashboard
+[exit 1]
+```
+
+Lighthouse: accessibility 100 on all six pages; performance 92-96 on login, students, attendance, early-warning list and student panel; the dashboard scores 82 (TBT ~620 ms), below the 90 target. Profiling (Chromium, 4x CPU throttling) attributes the difference to Recharts rendering the above-the-fold chart (~0.7 s self time in the Recharts chunk plus React work it triggers through useSyncExternalStore, which React cannot time-slice). Mitigations kept: charts lazy-loaded, rendered only near the viewport inside a transition, animations off, explicit tick intervals, measured width instead of ResponsiveContainer (student panel rose from 81 to 96). A bare chart without tooltip/grid still scored 78-86, so the remaining gap is the library's baseline cost; recorded as a deviation. Real issues found and fixed in this milestone: (1) the API client never consumed the body of a failed refresh / retried 401, leaving requests open (network never idle, Lighthouse load timeouts) — fixed and covered by a unit test; (2) Recharts' focusable SVG inside aria-hidden; (3) dark-mode primary button contrast; (4) 'Late' chip contrast; (5) keyboard-inaccessible scroll regions; (6) duplicate CSP / Cache-Control headers from nginx. An earlier ad-hoc Lighthouse helper was invalid because Git Bash rewrote '/' arguments into Windows paths; those numbers were discarded and all reported figures come from scripts/lighthouse.mjs.

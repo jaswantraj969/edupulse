@@ -12,13 +12,13 @@ its output recorded in `REVIEW_PACKET.md`; it is not a claim of external verific
 | M4 Frontend core | done | see git log (M4) |
 | M5 ML early-warning | done | see git log (M5) |
 | M6 ML in the UI | done | see git log (M6) |
-| M7 Hardening | not started | — |
+| M7 Hardening | done | see git log (M7) |
 | M8 Docs + release | not started | — |
 | M9 Publish | not started | — |
 
 ## Resume point
 
-Start of M7 (hardening).
+Start of M8 (docs + release).
 
 ## Decisions
 
@@ -82,6 +82,14 @@ Start of M7 (hardening).
 | D56 | M6 | Risk bands shown as text badges ("High risk"), factors as "↑ Raises / ↓ Lowers" chips plus sentences; trend shown as two single-series charts (attendance rate, average grade) with the prediction moment marked. | Never colour-only; no dual axis. |
 | D57 | M6 | "Early warning" is a top-level page; on mobile it lives in the "More" menu with Classes/Teachers. | Keeps the bottom bar to four daily tasks. |
 | D58 | M6 | Sign-out records the reason; the auth guard keeps the "return to" location only after session expiry. | The next person on a shared computer does not land on the previous user's page. |
+| D59 | M7 | Pure ASGI middlewares for request context (id + JSON access log) and security headers; caller-supplied `X-Request-ID` accepted only if `[A-Za-z0-9._-]{1,64}`. | Correct with streaming responses and context variables; prevents log injection. |
+| D60 | M7 | Error bodies carry `request_id`; unhandled exceptions return a generic 500 JSON and are logged with stack traces server-side only. | Supportable without leaking internals. |
+| D61 | M7 | `/health` = liveness (no dependencies); `/ready` = database + model hash check, 503 otherwise; Docker Compose waits for the API to be ready before starting the web container. | Standard probe split. |
+| D62 | M7 | API responses: `CSP default-src 'none'`, `Cache-Control: no-store`, frame/sniff/referrer/permissions/COOP headers; docs pages get a CSP allowing the Swagger/ReDoc CDN. nginx security headers moved to an include used per location so the API is not double-headed. | Defence in depth without breaking `/docs`. |
+| D63 | M7 | Accessibility gate = axe (WCAG 2.0–2.2 A/AA + best practice) on 14 screens in light and dark mode at 375 and 1440 px; any serious/critical violation fails Playwright. | Covers both themes and both layouts. |
+| D64 | M7 | Lighthouse runs against the Docker build with the mobile preset; signed-in pages get a fresh refresh-token cookie via `--extra-headers` (file). Script: `frontend/scripts/lighthouse.mjs`. | Measures the shipped artefact, including authenticated screens. |
+| D65 | M7 | Charts: lazy chunk, rendered only near the viewport inside a transition, no animations, explicit tick intervals, width measured once (no ResponsiveContainer). Recharts kept. | Best achievable with the specified chart library; see deviation. |
+| D66 | M7 | Dependency audits via `scripts/audit_deps.sh` (pip-audit on both uv lock files, npm audit) and a CI job. | Repeatable, recorded. |
 
 ## Deviations and limitations
 
@@ -89,3 +97,4 @@ Start of M7 (hardening).
 - Academic years and terms are read-only through the API (created by the seed/migrations); a year-rollover workflow is out of scope. (M3)
 - The model is trained on 2005–06 Portuguese data and must be re-validated locally before real use; the app's averaged multi-subject G1 and projected absences are an input shift relative to training (see docs/model_card.md). (M5)
 - On the test set, gradient boosting scored slightly higher than the selected logistic regression at the threshold; the pre-registered selection was kept (CIs overlap). (M5)
+- **Lighthouse dashboard performance 82 (target ≥ 90)** on the simulated mobile profile; other audited pages 92–96, accessibility 100 everywhere. Cause: Recharts render cost for the above-the-fold chart; evidence and mitigations in REVIEW_PACKET (M7). Options for a later version: a lighter chart component for the dashboard only, or server-rendered sparkline images. (M7)

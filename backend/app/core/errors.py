@@ -2,9 +2,13 @@
 
 Every error leaves the API as::
 
-    {"error": {"code": "not_found", "message": "Student not found", "details": null}}
+    {"error": {"code": "not_found", "message": "Student not found", "details": null,
+               "request_id": "3f2c..."}}
+
+``request_id`` matches the ``X-Request-ID`` response header and the server logs.
 """
 
+import logging
 from typing import Any
 
 from fastapi import FastAPI, HTTPException, Request, status
@@ -59,6 +63,7 @@ class ErrorBody(BaseModel):
     code: str
     message: str
     details: Any = None
+    request_id: str | None = None
 
 
 class ErrorResponse(BaseModel):
@@ -70,22 +75,36 @@ ERROR_RESPONSES: dict[int | str, dict[str, Any]] = {
 }
 
 
-def _body(code: str, message: str, details: Any = None) -> dict[str, Any]:
-    return {"error": {"code": code, "message": message, "details": details}}
+log = logging.getLogger("edupulse.errors")
+
+
+def _request_id(request: Request) -> str | None:
+    return getattr(request.state, "request_id", None)
+
+
+def _body(request: Request, code: str, message: str, details: Any = None) -> dict[str, Any]:
+    return {
+        "error": {
+            "code": code,
+            "message": message,
+            "details": details,
+            "request_id": _request_id(request),
+        }
+    }
 
 
 def install_error_handlers(app: FastAPI) -> None:
     @app.exception_handler(StarletteHTTPException)
-    async def _http_error(_request: Request, exc: StarletteHTTPException) -> JSONResponse:
+    async def _http_error(request: Request, exc: StarletteHTTPException) -> JSONResponse:
         code = getattr(exc, "code", None) or _DEFAULT_CODES.get(exc.status_code, "error")
         return JSONResponse(
-            _body(code, str(exc.detail), getattr(exc, "details", None)),
+            _body(request, code, str(exc.detail), getattr(exc, "details", None)),
             status_code=exc.status_code,
             headers=getattr(exc, "headers", None),
         )
 
     @app.exception_handler(RequestValidationError)
-    async def _validation_error(_request: Request, exc: RequestValidationError) -> JSONResponse:
+    async def _validation_error(request: Request, exc: RequestValidationError) -> JSONResponse:
         details = [
             {
                 "field": ".".join(str(p) for p in err["loc"] if p not in ("body", "query")),
@@ -95,15 +114,31 @@ def install_error_handlers(app: FastAPI) -> None:
             for err in exc.errors()
         ]
         return JSONResponse(
-            _body("validation_error", "Request validation failed", details),
+            _body(request, "validation_error", "Request validation failed", details),
             status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
         )
 
     @app.exception_handler(IntegrityError)
-    async def _integrity_error(_request: Request, _exc: IntegrityError) -> JSONResponse:
+    async def _integrity_error(request: Request, exc: IntegrityError) -> JSONResponse:
         # Route handlers pre-check uniqueness and references for friendly messages; this is the
         # backstop for races. Database details are not echoed to the client.
+        log.warning("integrity error", extra={"error": type(exc.orig).__name__})
         return JSONResponse(
-            _body("conflict", "The change conflicts with existing data"),
+            _body(request, "conflict", "The change conflicts with existing data"),
             status_code=status.HTTP_409_CONFLICT,
+        )
+
+    @app.exception_handler(Exception)
+    async def _unhandled(request: Request, exc: Exception) -> JSONResponse:
+        # Runs outside the request-context middleware, so the id comes from request.state.
+        request_id = _request_id(request)
+        log.error(
+            "unhandled error",
+            exc_info=exc,
+            extra={"request_id": request_id, "path": request.url.path},
+        )
+        return JSONResponse(
+            _body(request, "internal_error", "Internal server error"),
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            headers={"X-Request-ID": request_id} if request_id else None,
         )

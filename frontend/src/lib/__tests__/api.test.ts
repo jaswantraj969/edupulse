@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { ApiError, api, setAccessToken, setSessionExpiredHandler, toQuery } from '../api'
+import { ApiError, api, refreshSession, setAccessToken, setSessionExpiredHandler, toQuery } from '../api'
 
 function respond(status: number, body?: unknown) {
   return new Response(body === undefined ? null : JSON.stringify(body), {
@@ -51,6 +51,13 @@ describe('api client', () => {
     )
     await expect(api.get('/students')).rejects.toBeInstanceOf(ApiError)
     expect(expired).toHaveBeenCalledOnce()
+  })
+
+  it('consumes the body of a failed refresh so the request can complete', async () => {
+    const failed = respond(401, { error: { code: 'unauthorized', message: 'no cookie' } })
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(failed))
+    await expect(refreshSession()).resolves.toBe(false)
+    expect(failed.bodyUsed).toBe(true)
   })
 
   it('turns error bodies into ApiError with field errors', async () => {

@@ -118,8 +118,14 @@ def test_teacher_cannot_open_other_teachers_class(client: TestClient, school: Sc
 def test_class_not_found(client: TestClient, school: School) -> None:
     response = client.get(f"{CLASSES}/9999", headers=school.headers(school.admin))
     assert response.status_code == 404
+    request_id = response.headers["x-request-id"]
     assert response.json() == {
-        "error": {"code": "not_found", "message": "Class not found", "details": None}
+        "error": {
+            "code": "not_found",
+            "message": "Class not found",
+            "details": None,
+            "request_id": request_id,
+        }
     }
 
 

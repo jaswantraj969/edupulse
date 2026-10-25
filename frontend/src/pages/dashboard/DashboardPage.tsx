@@ -1,6 +1,7 @@
 import { useQuery } from '@tanstack/react-query'
 import { lazy, Suspense } from 'react'
 import { Link } from 'react-router'
+import { DeferredRender } from '@/components/DeferredRender'
 import { EmptyState, ErrorState, LoadingState, PageHeader } from '@/components/ui'
 import { api } from '@/lib/api'
 import { useUser } from '@/lib/auth'
@@ -59,14 +60,18 @@ export default function DashboardPage() {
           <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
             <ChartCard title="Weekly attendance rate">
               {query.data.attendance_trend.length ? (
-                <AttendanceTrendChart data={query.data.attendance_trend} />
+                <DeferredRender minHeight="18rem" label="Weekly attendance chart">
+                  <AttendanceTrendChart data={query.data.attendance_trend} />
+                </DeferredRender>
               ) : (
                 <EmptyState title="No attendance recorded yet" />
               )}
             </ChartCard>
             <ChartCard title="Students by average grade">
               {query.data.grade_distribution.some((b) => b.students > 0) ? (
-                <GradeDistributionChart data={query.data.grade_distribution} />
+                <DeferredRender minHeight="18rem" label="Grade distribution chart">
+                  <GradeDistributionChart data={query.data.grade_distribution} />
+                </DeferredRender>
               ) : (
                 <EmptyState title="No grades entered yet" />
               )}
