@@ -19,7 +19,7 @@ class Settings(BaseSettings):
     )
 
     environment: Literal["development", "test", "production"] = "development"
-    database_url: str = "postgresql+psycopg://edupulse:edupulse@localhost:5432/edupulse"
+    database_url: str = "postgresql+psycopg://edupulse:edupulse@127.0.0.1:5432/edupulse"
 
     # Secret used to sign JWTs. There is deliberately no usable default outside tests.
     jwt_secret: SecretStr = SecretStr("")

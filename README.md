@@ -10,7 +10,8 @@ explainable at-risk early-warning module for decision support.
 
 ```bash
 cp .env.example .env   # then fill in the secrets
-docker compose up --build
+docker compose up --build -d
+docker compose exec api python -m app.seed   # load SYNTHETIC demo data
 ```
 
 - Web app: http://localhost:8088

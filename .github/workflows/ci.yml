@@ -34,6 +34,40 @@ jobs:
       - name: Test
         run: uv run pytest --cov --cov-report=term-missing
 
+  backend-postgres:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: edupulse
+          POSTGRES_PASSWORD: ci-only-password
+          POSTGRES_DB: edupulse
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U edupulse" --health-interval 5s --health-timeout 3s
+          --health-retries 20
+    env:
+      EDUPULSE_DATABASE_URL: postgresql+psycopg://edupulse:ci-only-password@127.0.0.1:5432/edupulse
+      EDUPULSE_DEMO_PASSWORD: Ci-Demo-Password-1
+    defaults:
+      run:
+        working-directory: backend
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+        with:
+          python-version: "3.12"
+      - run: uv sync --frozen
+      - name: Migrate (upgrade, drift check, downgrade, upgrade)
+        run: |
+          uv run alembic upgrade head
+          uv run alembic check
+          uv run alembic downgrade base
+          uv run alembic upgrade head
+      - name: Seed synthetic data
+        run: uv run python -m app.seed
+
   ml:
     runs-on: ubuntu-latest
     defaults:

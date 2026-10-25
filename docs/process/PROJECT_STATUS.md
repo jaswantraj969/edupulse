@@ -6,7 +6,7 @@ its output recorded in `REVIEW_PACKET.md`; it is not a claim of external verific
 | Milestone | Status | Commit |
 |-----------|--------|--------|
 | M0 Skeleton | done | see git log (M0) |
-| M1 Data model + migrations | not started | — |
+| M1 Data model + migrations | done | see git log (M1) |
 | M2 Auth + security | not started | — |
 | M3 Core API | not started | — |
 | M4 Frontend core | not started | — |
@@ -18,7 +18,7 @@ its output recorded in `REVIEW_PACKET.md`; it is not a claim of external verific
 
 ## Resume point
 
-Start of M1 (data model + migrations).
+Start of M2 (auth + security).
 
 ## Decisions
 
@@ -33,6 +33,14 @@ Start of M1 (data model + migrations).
 | D7 | M0 | Compose publishes ports on 127.0.0.1 only and requires `POSTGRES_PASSWORD` and `EDUPULSE_JWT_SECRET` from `.env`. | No default secrets; nothing exposed beyond localhost. |
 | D8 | M0 | Web port defaults to 8088; all host ports configurable via `.env`. | 8080 was occupied on the development machine. |
 | D9 | M0 | `scripts/gate.sh` runs every gate check; `scripts/sanitize_output.py` masks local paths in its output. | Verbatim, commit-safe evidence for REVIEW_PACKET.md. |
+| D10 | M1 | Local database URLs use `127.0.0.1`, not `localhost`. | On Windows `localhost` resolves to `::1` first; Docker binds IPv4 only and the IPv6 connect stalled. |
+| D11 | M1 | Enums stored as VARCHAR + CHECK (`native_enum=False`); timestamps default to `CURRENT_TIMESTAMP`; Alembic `render_as_batch`. | One migration history that runs on Postgres and on SQLite in tests; a test asserts no drift between models and migrations. |
+| D12 | M1 | Class ownership for teachers = homeroom teacher OR any teaching assignment in the class. | Matches how schools work and gives one rule for "teacher sees only own classes". |
+| D13 | M1 | Attendance is daily (one record per student per day), not per lesson. | The brief asks for bulk marking per class per day; daily absences also map to the UCI `absences` feature. |
+| D14 | M1 | Student sex/gender is not stored. | Data minimisation: the app never uses it, and the fairness check runs on the UCI data in `ml/`. |
+| D15 | M1 | `students.prior_failures` (0–3) stored on the student profile. | Needed for the early-warning feature that mirrors UCI `failures`; schools hold this from prior years. |
+| D16 | M1 | Seed uses Faker (fixed seed 20250901), `@edupulse.example` e-mails and fictional `+1-555-01xx` phones; hidden traits (never stored) drive consistent grades/attendance; demo password from `EDUPULSE_DEMO_PASSWORD`. | Synthetic, reproducible, clearly non-real demo data with realistic spread. |
+| D17 | M1 | Grade upper bound (`score <= max_score`) enforced in the service layer. | A cross-table CHECK is not possible in portable SQL. |
 
 ## Deviations and limitations
 
