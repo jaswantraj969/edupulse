@@ -8,17 +8,30 @@ from fastapi.testclient import TestClient
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from app.models import AuditAction, AuditLog, Grade, TeachingAssignment
+from app.models import AuditAction, AuditLog, Grade, Teacher, TeachingAssignment
 from tests import factories as f
 from tests.conftest import School
 
 AUDIT = "/api/v1/audit-logs"
 
 
-def _grade_student_b(db: Session, school: School) -> None:
-    assignment = db.scalars(
-        select(TeachingAssignment).where(TeachingAssignment.class_id == school.class_b.id)
+def _teacher_b(school: School) -> Teacher:
+    teacher = school.class_b.homeroom_teacher
+    assert teacher is not None
+    return teacher
+
+
+def _assignment(db: Session, school: School) -> TeachingAssignment:
+    return db.scalars(
+        select(TeachingAssignment)
+        .where(TeachingAssignment.class_id == school.class_b.id)
+        .order_by(TeachingAssignment.id)
+        .limit(1)
     ).one()
+
+
+def _grade_student_b(db: Session, school: School) -> None:
+    assignment = _assignment(db, school)
     quiz = f.make_assessment(db, assignment, assignment.class_group.academic_year.terms[0])
     db.add(Grade(assessment_id=quiz.id, student_id=school.student_b.id, score=Decimal(7)))
     db.commit()
@@ -72,9 +85,10 @@ def test_export_csv_contents(client: TestClient, db: Session, school: School) ->
     assert len(rows) == 1
     row = rows[0]
     assert row["student_no"] == school.student_b.student_no
+    assert row["subject"] == _assignment(db, school).subject.name
     assert row["status"] == "scored"
     assert row["band"] in {"high", "medium", "low"}
-    assert float(row["term1_average_0_20"]) == 7.0
+    assert float(row["term1_subject_average_0_20"]) == 7.0
     assert "Demo" in row["notice"]
     assert "never use this score as an automatic sanction" in row["notice"]
 
@@ -118,3 +132,41 @@ def test_risk_export_neutralises_formulas(client: TestClient, db: Session, schoo
     row = next(csv.DictReader(io.StringIO(response.text)))
     assert row["last_name"].startswith("'=")
     assert row["first_name"] == "'@cmd"
+
+
+def test_export_has_one_row_per_student_subject_pair(
+    client: TestClient, db: Session, school: School
+) -> None:
+    _grade_student_b(db, school)  # student_b graded in the first subject
+    term1 = _assignment(db, school).class_group.academic_year.terms[0]
+    second = f.assign(db, school.class_b, _teacher_b(school))
+    third = f.assign(db, school.class_b, _teacher_b(school))  # not graded
+    db.add(
+        Grade(
+            assessment_id=f.make_assessment(db, second, term1).id,
+            student_id=school.student_b.id,
+            score=Decimal(18),
+        )
+    )
+    other = f.make_student(db)
+    f.enrol(db, other, school.class_b)  # no grades at all
+    second.subject.name = "=SUM(A1:A2)"  # subject names are formula-escaped too
+    db.commit()
+    response = client.get(
+        f"/api/v1/risk/classes/{school.class_b.id}/export", headers=school.headers(school.admin)
+    )
+    rows = list(csv.DictReader(io.StringIO(response.text)))
+    pairs = [(r["student_no"], r["subject"], r["status"]) for r in rows]
+    assert len(pairs) == 2 * 3  # 2 students x 3 subjects
+    assert len(set(pairs)) == len(pairs)
+    b_rows = [r for r in rows if r["student_no"] == school.student_b.student_no]
+    assert [r["status"] for r in b_rows] == ["scored", "scored", "insufficient_data"]
+    assert b_rows[0]["subject"] == _assignment(db, school).subject.name  # 35 % first
+    assert b_rows[1]["subject"] == "'=SUM(A1:A2)"
+    assert b_rows[2]["subject"] == third.subject.name
+    assert b_rows[2]["probability"] == ""
+    assert b_rows[2]["term1_subject_average_0_20"] == ""
+    assert rows[0]["student_no"] == school.student_b.student_no  # scored students first
+    assert {r["status"] for r in rows if r["student_no"] == other.student_no} == {
+        "insufficient_data"
+    }

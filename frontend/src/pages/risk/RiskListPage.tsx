@@ -55,8 +55,13 @@ export default function RiskListPage() {
         render: (r) => <span className="tabular-nums">{percent(r.probability)}</span>,
       },
       {
+        key: 'subject',
+        header: 'Highest-risk subject',
+        render: (r) => r.top_subject ?? '—',
+      },
+      {
         key: 'g1',
-        header: 'Term 1 avg',
+        header: 'Term 1 avg (subject)',
         render: (r) => (r.inputs?.g1 == null ? '—' : `${r.inputs.g1.toFixed(1)}/20`),
         hideOnMobile: true,
       },
@@ -97,7 +102,7 @@ export default function RiskListPage() {
     <>
       <PageHeader
         title="Early warning"
-        description="Students who may need support, estimated after first-period (Term 1) grades."
+        description="Students who may need support, estimated per subject after first-period (Term 1) grades. Each student is shown with their highest-risk subject."
         actions={
           classId && (
             <Button variant="secondary" onClick={() => void exportCsv()} loading={exporting} disabled={!query.data}>

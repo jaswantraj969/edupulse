@@ -41,6 +41,7 @@ export default function StudentRiskPage() {
   if (risk.isError) return <ErrorState error={risk.error} onRetry={() => void risk.refetch()} />
   const r = risk.data
   const asOfMonth = r.as_of ? r.as_of.slice(0, 7) : null
+  const scored = r.subjects.filter((x) => x.status === 'scored')
 
   return (
     <>
@@ -73,55 +74,79 @@ export default function StudentRiskPage() {
                 <p className="text-3xl font-semibold tabular-nums">{percent(r.probability)}</p>
               </div>
               <p className="mt-2 text-sm text-slate-600 dark:text-slate-400">
-                Estimated chance of failing the year if nothing changes. Bands: high ≥ {percent(r.model.thresholds.high)}, medium ≥{' '}
-                {percent(r.model.thresholds.medium)}.
+                Highest-risk subject: <span className="font-medium text-slate-900 dark:text-slate-100">{r.top_subject}</span>.
+                Estimated chance of failing that subject if nothing changes. Bands: high ≥ {percent(r.model.thresholds.high)},
+                medium ≥ {percent(r.model.thresholds.medium)}.
               </p>
-              {r.inputs && (
-                <dl className="mt-4 grid grid-cols-2 gap-2 text-sm">
-                  <div className="rounded-lg bg-slate-50 p-2 dark:bg-slate-800/60">
-                    <dt className="text-xs text-slate-600 dark:text-slate-400">Term 1 avg</dt>
-                    <dd className="font-semibold tabular-nums">{r.inputs.g1?.toFixed(1)}/20</dd>
-                  </div>
-                  <div className="rounded-lg bg-slate-50 p-2 dark:bg-slate-800/60">
-                    <dt className="text-xs text-slate-600 dark:text-slate-400">Past failures</dt>
-                    <dd className="font-semibold tabular-nums">{r.inputs.failures}</dd>
-                  </div>
-                </dl>
-              )}
+              <dl className="mt-4 grid grid-cols-2 gap-2 text-sm">
+                <div className="rounded-lg bg-slate-50 p-2 dark:bg-slate-800/60">
+                  <dt className="text-xs text-slate-600 dark:text-slate-400">Subjects scored</dt>
+                  <dd className="font-semibold tabular-nums">
+                    {scored.length} of {r.subjects.length}
+                  </dd>
+                </div>
+                <div className="rounded-lg bg-slate-50 p-2 dark:bg-slate-800/60">
+                  <dt className="text-xs text-slate-600 dark:text-slate-400">Past failures</dt>
+                  <dd className="font-semibold tabular-nums">{r.subjects[0]?.inputs.failures ?? '—'}</dd>
+                </div>
+              </dl>
             </>
           )}
         </section>
 
-        <section className="card p-4 sm:p-6 lg:col-span-3" aria-labelledby="factors-h">
-          <h2 id="factors-h" className="text-base font-semibold">
-            What drives this estimate
+        <section className="card p-4 sm:p-6 lg:col-span-3" aria-labelledby="subjects-h">
+          <h2 id="subjects-h" className="text-base font-semibold">
+            Estimate by subject
           </h2>
-          {r.factors.length === 0 ? (
-            <p className="mt-3 text-sm text-slate-600 dark:text-slate-400">No factors available.</p>
+          {r.subjects.length === 0 ? (
+            <p className="mt-3 text-sm text-slate-600 dark:text-slate-400">No subjects available.</p>
           ) : (
-            <ol className="mt-3 flex flex-col gap-3">
-              {r.factors.map((f) => (
-                <li key={f.feature} className="flex gap-3 text-sm">
-                  <span
-                    className={`mt-0.5 inline-flex h-6 min-w-16 items-center justify-center rounded-full px-2 text-xs font-semibold ${
-                      f.direction === 'raises'
-                        ? 'bg-red-100 text-red-900 dark:bg-red-900/50 dark:text-red-200'
-                        : 'bg-emerald-100 text-emerald-900 dark:bg-emerald-900/50 dark:text-emerald-200'
-                    }`}
-                  >
-                    {f.direction === 'raises' ? '↑ Raises' : '↓ Lowers'}
-                  </span>
-                  <span>
-                    <span className="font-medium">{f.label}.</span> {f.text}
-                  </span>
+            <ol className="mt-3 flex flex-col divide-y divide-slate-200 dark:divide-slate-700">
+              {r.subjects.map((subject) => (
+                <li key={subject.subject_id} className="py-3 first:pt-0 last:pb-0">
+                  <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
+                    <h3 className="font-medium">{subject.subject_name}</h3>
+                    {subject.status === 'scored' ? (
+                      <>
+                        <BandBadge band={subject.band} />
+                        <span className="text-sm tabular-nums">{percent(subject.probability)}</span>
+                        <span className="text-xs text-slate-600 dark:text-slate-400">
+                          Term 1 avg {subject.inputs.g1?.toFixed(1)}/20
+                        </span>
+                      </>
+                    ) : (
+                      <span className="text-sm text-slate-600 dark:text-slate-400">No Term 1 grades in this subject</span>
+                    )}
+                  </div>
+                  {subject.factors.length > 0 && (
+                    <ul className="mt-2 flex flex-col gap-2" aria-label={`What drives the ${subject.subject_name} estimate`}>
+                      {subject.factors.map((f) => (
+                        <li key={f.feature} className="flex gap-3 text-sm">
+                          <span
+                            className={`mt-0.5 inline-flex h-6 min-w-16 items-center justify-center rounded-full px-2 text-xs font-semibold ${
+                              f.direction === 'raises'
+                                ? 'bg-red-100 text-red-900 dark:bg-red-900/50 dark:text-red-200'
+                                : 'bg-emerald-100 text-emerald-900 dark:bg-emerald-900/50 dark:text-emerald-200'
+                            }`}
+                          >
+                            {f.direction === 'raises' ? '↑ Raises' : '↓ Lowers'}
+                          </span>
+                          <span>
+                            <span className="font-medium">{f.label}.</span> {f.text}
+                          </span>
+                        </li>
+                      ))}
+                    </ul>
+                  )}
                 </li>
               ))}
             </ol>
           )}
           <p className="mt-4 text-xs text-slate-600 dark:text-slate-400">
-            Factors are listed by strength. They describe the model, not the student: talk to the student and their teachers
-            before drawing conclusions. The estimate uses only the Term 1 average and previous failures; attendance is shown
-            below for context but is not part of it.
+            Each subject is scored separately, as the model was trained on one course at a time; the student&apos;s band is
+            that of the highest-risk subject. Factors are listed by strength. They describe the model, not the student: talk
+            to the student and their teachers before drawing conclusions. The estimate uses only the Term 1 subject average
+            and previous failures; attendance is shown below for context but is not part of it.
           </p>
         </section>
       </div>

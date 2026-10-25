@@ -25,6 +25,16 @@ async function scrollIntoView(page: Page, text: string) {
   await page.getByRole('heading', { name: text }).scrollIntoViewIfNeeded()
 }
 
+// The trend charts render only once scrolled into view; on mobile, end on the per-subject list.
+async function riskPanel(page: Page, prefix: string) {
+  await settle(page)
+  await scrollIntoView(page, 'Attendance and grade trend')
+  await expect(page.getByText('Loading chart…')).toHaveCount(0)
+  await page.waitForTimeout(600)
+  if (prefix === 'mobile') await scrollIntoView(page, 'Estimate by subject')
+  else await page.evaluate(() => window.scrollTo(0, 0))
+}
+
 test('documentation screenshots', async ({ page }, testInfo) => {
   test.setTimeout(180_000)
   const prefix = testInfo.project.name.startsWith('mobile') ? 'mobile' : 'desktop'
@@ -56,7 +66,7 @@ test('documentation screenshots', async ({ page }, testInfo) => {
   await page.goto(`/early-warning?class_id=${classId}`)
   await shoot(page, `${prefix}-early-warning`, prefix === 'desktop')
   await page.goto(studentHref!)
-  if (prefix === 'mobile') await scrollIntoView(page, 'What drives this estimate')
+  await riskPanel(page, prefix)
   await shoot(page, `${prefix}-student-risk`, prefix === 'desktop')
 
   // Dark mode examples.
@@ -65,5 +75,6 @@ test('documentation screenshots', async ({ page }, testInfo) => {
   await page.goto('/')
   await shoot(page, `${prefix}-dashboard-dark`)
   await page.goto(studentHref!)
+  await riskPanel(page, prefix)
   await shoot(page, `${prefix}-student-risk-dark`)
 })

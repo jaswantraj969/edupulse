@@ -1,4 +1,7 @@
-"""Early-warning risk scores (decision support). Teachers only see their own classes."""
+"""Early-warning risk scores (decision support). Teachers only see their own classes.
+
+Each (student, subject) pair is scored separately; a student's band is that of their
+highest-risk subject."""
 
 from typing import Annotated, Literal
 
@@ -20,6 +23,7 @@ from app.schemas.risk import (
     RiskModelInfo,
     StudentRisk,
     StudentRiskRow,
+    SubjectRisk,
 )
 from app.services import audit, risk
 from app.services.access import ensure_class_access, ensure_student_access
@@ -29,7 +33,7 @@ from app.services.csv_io import csv_response
 router = APIRouter(prefix="/risk", tags=["early warning"], responses=ERROR_RESPONSES)
 
 FEATURE_LABELS = {
-    "g1": "Term 1 average",
+    "g1": "Term 1 subject average",
     "failures": "Previous failures",
 }
 DEMO_NOTICE = "Demo — synthetic data. Scores are illustrative and refer to no real student."
@@ -65,14 +69,8 @@ def model_info(model: risk.RiskModel, settings: Settings) -> RiskModelInfo:
     )
 
 
-def _inputs(f: risk.StudentFeatures | None) -> RiskInputs | None:
-    if f is None:
-        return None
-    return RiskInputs(
-        g1=f.g1,
-        failures=f.failures,
-        assessments_term1=f.assessments_term1,
-    )
+def _inputs(f: risk.SubjectFeatures) -> RiskInputs:
+    return RiskInputs(g1=f.g1, failures=f.failures, assessments_term1=f.assessments_term1)
 
 
 def _factors(result: risk.RiskResult) -> list[RiskFactor]:
@@ -89,11 +87,23 @@ def _factors(result: risk.RiskResult) -> list[RiskFactor]:
     ]
 
 
+def _subject(result: risk.RiskResult) -> SubjectRisk:
+    return SubjectRisk(
+        subject_id=result.features.subject_id,
+        subject_name=result.features.subject_name,
+        status=result.status,
+        probability=result.probability,
+        band=result.band,
+        factors=_factors(result),
+        inputs=_inputs(result.features),
+    )
+
+
 def score_class(
     db: Session, model: risk.RiskModel, class_group: ClassGroup
-) -> tuple[list[Student], dict[int, risk.RiskResult]]:
+) -> tuple[list[Student], dict[int, risk.StudentResult]]:
     students = roster(db, class_group.id)
-    feats = risk.compute_features(db, students, class_group.academic_year)
+    feats = risk.compute_features(db, students, class_group)
     return students, risk.score_students(model, feats)
 
 
@@ -106,39 +116,50 @@ SortKey = Annotated[Literal["probability", "name"], Query()]
 SortOrder = Annotated[Literal["asc", "desc"], Query()]
 
 
+def _top_probability(result: risk.StudentResult) -> float:
+    top = result.top
+    return top.probability or 0.0 if top else 0.0
+
+
 def _class_rows(
     db: Session, user: User, model: risk.RiskModel, class_id: int, sort: str, order: str
-) -> tuple[ClassGroup, list[StudentRiskRow]]:
+) -> tuple[ClassGroup, list[tuple[Student, risk.StudentResult]]]:
+    """Students with their per-subject results, sorted by the highest-risk subject."""
     class_group = get_or_404(db, ClassGroup, class_id, "Class")
     ensure_class_access(db, user, class_id)
     students, results = score_class(db, model, class_group)
-    rows = []
-    for s in students:
-        r = results[s.id]
-        rows.append(
-            StudentRiskRow(
-                student_id=s.id,
-                student_no=s.student_no,
-                first_name=s.first_name,
-                last_name=s.last_name,
-                status=r.status,
-                probability=r.probability,
-                band=r.band,
-                top_factor=r.factors[0].text if r.factors else None,
-                inputs=_inputs(r.features),
-            )
-        )
+    pairs = [(s, results[s.id]) for s in students]
     if sort == "name":
-        rows.sort(key=lambda r: (r.last_name, r.first_name), reverse=order == "desc")
+        pairs.sort(key=lambda p: (p[0].last_name, p[0].first_name), reverse=order == "desc")
     else:
         # Unscored students always last, whatever the direction.
         scored = sorted(
-            (r for r in rows if r.probability is not None),
-            key=lambda r: r.probability or 0.0,
+            (p for p in pairs if p[1].top is not None),
+            key=lambda p: _top_probability(p[1]),
             reverse=order == "desc",
         )
-        rows = scored + [r for r in rows if r.probability is None]
-    return class_group, rows
+        pairs = scored + [p for p in pairs if p[1].top is None]
+    return class_group, pairs
+
+
+def _row(student: Student, result: risk.StudentResult) -> StudentRiskRow:
+    top = result.top
+    scored = sum(r.status == "scored" for r in result.subjects)
+    return StudentRiskRow(
+        student_id=student.id,
+        student_no=student.student_no,
+        first_name=student.first_name,
+        last_name=student.last_name,
+        status="scored" if top else "insufficient_data",
+        probability=top.probability if top else None,
+        band=top.band if top else None,
+        top_subject_id=top.features.subject_id if top else None,
+        top_subject=top.features.subject_name if top else None,
+        top_factor=top.factors[0].text if top and top.factors else None,
+        inputs=_inputs(top.features) if top else None,
+        subjects_scored=scored,
+        subjects_insufficient=len(result.subjects) - scored,
+    )
 
 
 @router.get("/classes/{class_id}", response_model=ClassRisk, summary="Risk list for a class")
@@ -151,10 +172,11 @@ def class_risk(
     sort: SortKey = "probability",
     order: SortOrder = "desc",
 ) -> ClassRisk:
-    """Students without Term 1 grades are listed with ``status = insufficient_data``.
-    Every successful call is recorded in the audit log."""
+    """Each student is shown with their highest-risk subject; ``sort=probability`` sorts by
+    that subject's probability. Students without any Term 1 grades are listed with
+    ``status = insufficient_data``. Every successful call is recorded in the audit log."""
     model = _model(settings)
-    class_group, rows = _class_rows(db, user, model, class_id, sort, order)
+    class_group, pairs = _class_rows(db, user, model, class_id, sort, order)
     audit.record(
         db, request, user, AuditAction.RISK_VIEW_CLASS, "class", class_id, class_group.name
     )
@@ -163,7 +185,7 @@ def class_risk(
         class_name=class_group.name,
         as_of=risk.first_term(class_group.academic_year).end_date,
         model=model_info(model, settings),
-        students=rows,
+        students=[_row(s, r) for s, r in pairs],
     )
 
 
@@ -175,9 +197,10 @@ def class_risk(
 def export_class_risk(
     class_id: int, request: Request, db: DbDep, user: CurrentUser, settings: SettingsDep
 ) -> Response:
-    """Recorded in the audit log. Each row repeats the decision-support notice."""
+    """One row per (student, subject) pair, students ordered by their highest-risk subject.
+    Recorded in the audit log. Each row repeats the decision-support notice."""
     model = _model(settings)
-    class_group, rows = _class_rows(db, user, model, class_id, "probability", "desc")
+    class_group, pairs = _class_rows(db, user, model, class_id, "probability", "desc")
     audit.record(
         db, request, user, AuditAction.RISK_EXPORT_CLASS, "class", class_id, class_group.name
     )
@@ -186,28 +209,31 @@ def export_class_risk(
         "student_no",
         "last_name",
         "first_name",
+        "subject",
         "status",
         "band",
         "probability",
-        "term1_average_0_20",
+        "term1_subject_average_0_20",
         "prior_failures",
         "main_factor",
         "notice",
     ]
     body = [
         [
-            r.student_no,
-            r.last_name,
-            r.first_name,
+            student.student_no,
+            student.last_name,
+            student.first_name,
+            r.features.subject_name,
             r.status,
             r.band or "",
             "" if r.probability is None else f"{r.probability:.3f}",
-            "" if r.inputs is None or r.inputs.g1 is None else r.inputs.g1,
-            "" if r.inputs is None else r.inputs.failures,
-            r.top_factor or "",
+            "" if r.features.g1 is None else r.features.g1,
+            r.features.failures,
+            r.factors[0].text if r.factors else "",
             notice,
         ]
-        for r in rows
+        for student, result in pairs
+        for r in result.subjects
     ]
     suffix = "-demo" if settings.demo_mode else ""
     return csv_response(f"risk-{class_group.name}{suffix}.csv", header, body)
@@ -236,10 +262,11 @@ def student_risk(
         if year
         else None
     )
-    result = risk.RiskResult(student_id, "insufficient_data")
+    result = risk.StudentResult(student_id, [])
     if class_group is not None:
-        feats = risk.compute_features(db, [student], class_group.academic_year)
+        feats = risk.compute_features(db, [student], class_group)
         result = risk.score_students(model, feats)[student_id]
+    top = result.top
     audit.record(
         db, request, user, AuditAction.RISK_VIEW_STUDENT, "student", student_id, student.student_no
     )
@@ -251,10 +278,10 @@ def student_risk(
         class_id=class_group.id if class_group else None,
         class_name=class_group.name if class_group else None,
         as_of=risk.first_term(class_group.academic_year).end_date if class_group else None,
-        status=result.status,
-        probability=result.probability,
-        band=result.band,
-        factors=_factors(result),
-        inputs=_inputs(result.features),
+        status="scored" if top else "insufficient_data",
+        probability=top.probability if top else None,
+        band=top.band if top else None,
+        top_subject=top.features.subject_name if top else None,
+        subjects=[_subject(r) for r in result.subjects],
         model=model_info(model, settings),
     )

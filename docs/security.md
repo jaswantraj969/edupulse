@@ -24,6 +24,17 @@
   `EDUPULSE_DEMO_PASSWORD` and one that fails the password policy.
 - **Login rate limit:** 5 failures per minute per (client IP, e-mail) and 20 per client IP →
   HTTP 429 with `Retry-After`. State is per process (see limitations).
+- **Client address behind the proxy (review T-R3).** In docker compose the browser talks to
+  nginx (`web`), which proxies `/api/` to `api:8000`, so the API's TCP peer is nginx. The
+  compose network has a fixed subnet and nginx a fixed address (`EDUPULSE_PROXY_IP`, default
+  `172.30.57.10`, outside the dynamic `ip_range`). Uvicorn runs with `--proxy-headers
+  --forwarded-allow-ips="$EDUPULSE_TRUSTED_PROXY"` set to that address only; the entrypoint
+  refuses `*`. nginx overwrites `X-Forwarded-For` with its peer address. A client that reaches
+  the published API port directly (127.0.0.1:8000) is keyed by its own address and its
+  `X-Forwarded-For` is ignored. Before T-R3 uvicorn trusted the header from any address, so
+  forging it gave every attempt a fresh per-client key (25 failed logins with forged headers,
+  no 429). Tests: `backend/tests/test_proxy_headers.py`. Outside compose, set
+  `EDUPULSE_TRUSTED_PROXY` to the address of your own reverse proxy (default `127.0.0.1`).
 - Registration is admin-only; there is no self sign-up.
 
 ## Authorisation

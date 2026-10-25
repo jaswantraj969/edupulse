@@ -5,7 +5,7 @@ import AuditLogPage from '@/pages/risk/AuditLogPage'
 import RiskListPage from '@/pages/risk/RiskListPage'
 import StudentRiskPage from '@/pages/risk/StudentRiskPage'
 import { mockApi, renderWithProviders, TEACHER } from '@/test/utils'
-import type { ClassRisk, RiskModelInfo, StudentRisk } from '@/lib/types'
+import type { ClassRisk, RiskFactor, RiskModelInfo, StudentRisk } from '@/lib/types'
 
 // Recharts is heavy to load in jsdom and is not what these tests check.
 vi.mock('@/pages/risk/RiskTrendCharts', () => ({
@@ -32,9 +32,9 @@ const classRisk: ClassRisk = {
   as_of: '2025-12-19',
   model,
   students: [
-    { student_id: 11, student_no: 'S11', first_name: 'Ana', last_name: 'Lopes', status: 'scored', probability: 0.72, band: 'high', top_factor: 'Term 1 average of 7.2/20 is below the typical 11/20; this raises the estimate.', inputs },
-    { student_id: 12, student_no: 'S12', first_name: 'Rui', last_name: 'Mota', status: 'scored', probability: 0.05, band: 'low', top_factor: 'Term 1 average is above typical.', inputs: { ...inputs, g1: 15 } },
-    { student_id: 13, student_no: 'S13', first_name: 'Eva', last_name: 'Neves', status: 'insufficient_data', probability: null, band: null, top_factor: null, inputs: { ...inputs, g1: null } },
+    { student_id: 11, student_no: 'S11', first_name: 'Ana', last_name: 'Lopes', status: 'scored', probability: 0.72, band: 'high', top_subject_id: 1, top_subject: 'Mathematics', top_factor: 'Term 1 Mathematics average of 7.2/20 is below the typical 11/20; this raises the estimate.', inputs, subjects_scored: 3, subjects_insufficient: 0 },
+    { student_id: 12, student_no: 'S12', first_name: 'Rui', last_name: 'Mota', status: 'scored', probability: 0.05, band: 'low', top_subject_id: 2, top_subject: 'History', top_factor: 'Term 1 History average is above typical.', inputs: { ...inputs, g1: 15 }, subjects_scored: 3, subjects_insufficient: 0 },
+    { student_id: 13, student_no: 'S13', first_name: 'Eva', last_name: 'Neves', status: 'insufficient_data', probability: null, band: null, top_subject_id: null, top_subject: null, top_factor: null, inputs: null, subjects_scored: 0, subjects_insufficient: 3 },
   ],
 }
 const routes = {
@@ -55,6 +55,9 @@ describe('RiskListPage', () => {
     expect(within(table).getByText('Low risk')).toBeInTheDocument()
     expect(within(table).getByText('Not scored')).toBeInTheDocument()
     expect(within(table).getByText('No Term 1 grades yet')).toBeInTheDocument()
+    expect(within(table).getByRole('columnheader', { name: 'Highest-risk subject' })).toBeInTheDocument()
+    expect(within(table).getByText('Mathematics')).toBeInTheDocument()
+    expect(within(table).getByText('History')).toBeInTheDocument()
     expect(within(table).getByRole('link', { name: 'Lopes, Ana' })).toHaveAttribute('href', '/early-warning/students/11')
     expect(screen.getByText(/1 high · 0 medium · 1 low · 1 not scored/)).toBeInTheDocument()
   })
@@ -82,6 +85,14 @@ describe('RiskListPage', () => {
   })
 })
 
+function factors(subject: string, g1: number, direction: 'raises' | 'lowers'): RiskFactor[] {
+  const relation = direction === 'raises' ? 'below' : 'at or above'
+  return [
+    { feature: 'g1', label: 'Term 1 subject average', value: g1, contribution: direction === 'raises' ? 2.1 : -1.5, direction, text: `Term 1 ${subject} average of ${g1.toFixed(1)}/20 is ${relation} the typical 11/20; this ${direction} the estimate.` },
+    { feature: 'failures', label: 'Previous failures', value: 1, contribution: 0.3, direction: 'raises', text: 'Failed 1 previous school year; this raises the estimate.' },
+  ]
+}
+
 const studentRisk: StudentRisk = {
   student_id: 11,
   student_no: 'S11',
@@ -93,11 +104,12 @@ const studentRisk: StudentRisk = {
   status: 'scored',
   probability: 0.72,
   band: 'high',
-  inputs,
+  top_subject: 'Mathematics',
   model,
-  factors: [
-    { feature: 'g1', label: 'Term 1 average', value: 7.2, contribution: 2.1, direction: 'raises', text: 'Term 1 average of 7.2/20 is below the typical 11/20; this raises the estimate.' },
-    { feature: 'failures', label: 'Previous failures', value: 0, contribution: -0.1, direction: 'lowers', text: 'No previous school-year failures; this lowers the estimate.' },
+  subjects: [
+    { subject_id: 1, subject_name: 'Mathematics', status: 'scored', probability: 0.72, band: 'high', inputs, factors: factors('Mathematics', 7.2, 'raises') },
+    { subject_id: 2, subject_name: 'History', status: 'scored', probability: 0.04, band: 'low', inputs: { ...inputs, g1: 16 }, factors: factors('History', 16, 'lowers') },
+    { subject_id: 3, subject_name: 'Art', status: 'insufficient_data', probability: null, band: null, inputs: { ...inputs, g1: null, assessments_term1: 0 }, factors: [] },
   ],
 }
 const studentRoutes = {
@@ -112,23 +124,33 @@ describe('StudentRiskPage', () => {
     renderWithProviders(<StudentRiskPage />, { route: '/early-warning/students/11', path: '/early-warning/students/:id' })
     expect(await screen.findByRole('heading', { level: 1, name: 'Ana Lopes' })).toBeInTheDocument()
     expect(screen.getByRole('note')).toHaveTextContent("review with the student's context")
-    expect(screen.getByText('High risk')).toBeInTheDocument()
-    expect(screen.getByText('72%')).toBeInTheDocument()
-    const factors = screen.getByRole('region', { name: 'What drives this estimate' })
-    const items = within(factors).getAllByRole('listitem')
+    const estimate = screen.getByRole('region', { name: 'Estimate' })
+    expect(within(estimate).getByText('High risk')).toBeInTheDocument()
+    expect(within(estimate).getByText('72%')).toBeInTheDocument()
+    expect(within(estimate).getByText(/Highest-risk subject:/)).toHaveTextContent('Highest-risk subject: Mathematics.')
+    const bySubject = screen.getByRole('region', { name: 'Estimate by subject' })
+    const subjects = within(bySubject).getAllByRole('heading', { level: 3 }).map((h) => h.textContent)
+    expect(subjects).toEqual(['Mathematics', 'History', 'Art'])
+    const maths = within(bySubject).getByRole('list', { name: 'What drives the Mathematics estimate' })
+    const items = within(maths).getAllByRole('listitem')
+    expect(items).toHaveLength(2)
     expect(items[0]).toHaveTextContent('↑ Raises')
-    expect(items[0]).toHaveTextContent('Term 1 average of 7.2/20')
-    expect(items[1]).toHaveTextContent('↓ Lowers')
+    expect(items[0]).toHaveTextContent('Term 1 Mathematics average of 7.2/20')
+    const history = within(bySubject).getByRole('list', { name: 'What drives the History estimate' })
+    expect(within(history).getAllByRole('listitem')[0]).toHaveTextContent('↓ Lowers')
+    expect(within(bySubject).getByText('No Term 1 grades in this subject')).toBeInTheDocument()
+    expect(within(bySubject).queryByRole('list', { name: 'What drives the Art estimate' })).toBeNull()
+    expect(screen.getByText('2 of 3')).toBeInTheDocument()
     expect(screen.getByRole('link', { name: 'Early warning' })).toHaveAttribute('href', '/early-warning?class_id=3')
     expect(await screen.findByText('chart: Attendance rate by month')).toBeInTheDocument()
     expect(await screen.findByText('chart: Average grade by month')).toBeInTheDocument()
   })
 
   it('shows when there is not enough data', async () => {
-    mockApi({ ...studentRoutes, 'GET /api/v1/risk/students/11': { ...studentRisk, status: 'insufficient_data', probability: null, band: null, factors: [], inputs: null } })
+    mockApi({ ...studentRoutes, 'GET /api/v1/risk/students/11': { ...studentRisk, status: 'insufficient_data', probability: null, band: null, top_subject: null, subjects: [] } })
     renderWithProviders(<StudentRiskPage />, { route: '/early-warning/students/11', path: '/early-warning/students/:id' })
     expect(await screen.findByText('Not enough data')).toBeInTheDocument()
-    expect(screen.getByText('No factors available.')).toBeInTheDocument()
+    expect(screen.getByText('No subjects available.')).toBeInTheDocument()
   })
 })
 

@@ -32,7 +32,10 @@ Three properties of the data shaped the design:
    match, forming 366 identity groups that span both files (9 groups with more than two rows are
    attribute collisions, kept together). Splitting rows at random would put a student's Maths row
    in training and their Portuguese row in the test set, inflating results, so every split is
-   **grouped by student** (662 groups) and every run audits it (0 crossings).
+   **grouped by student** (662 groups) and every run audits it (0 crossings). The 13-attribute
+   key is not a true identifier: two distinct students with identical attributes are merged into
+   one group. That only ever keeps extra rows together, so it makes the splits more
+   conservative, not leakier.
 2. **Grades arrive in three periods** (G1, G2, G3). G3 is the final grade; G1 is known after the
    first term. The **prediction moment is after first-period grades (end of Term 1)**: G1 may be
    used, G2 and G3 may not (G3 only defines the target: fail = G3 < 10/20, 22.0 % of rows).
@@ -66,7 +69,7 @@ the ablation shows CV AP 0.780 ± 0.065 with age vs 0.769 ± 0.062 without — w
 | Model comparison | 3 × repeated stratified grouped 5-fold CV on the other 80 %; dummy baseline, logistic regression and gradient boosting on **identical folds** |
 | Metric | **Average precision** (precision–recall), suited to a minority class and to "who should we look at first" |
 | Selection rule | Best mean CV AP; a simpler model within 0.01 wins |
-| Threshold | Highest threshold reaching 80 % recall on **out-of-fold** predictions (the test set never influences it); a "medium" band at 95 % recall |
+| Threshold | Highest threshold reaching 80 % recall on **out-of-fold** predictions (the test set never influences it), using each training row's mean OOF probability over the 3 CV repeats; a "medium" band at 95 % recall |
 | Final test | Refit on the 80 %, score the test set **once** (enforced by a holdout guard), 95 % CIs from 2,000 student-level bootstrap resamples |
 
 The plan (seed, inputs, candidates, rules) was committed and pushed before the run
@@ -144,19 +147,29 @@ re-scoring the old one.
 The backend computes the same two inputs from EduPulse's own records
 ([`backend/app/services/risk.py`](../backend/app/services/risk.py)):
 
-- **Term 1 average** = weight-averaged percentage of all Term 1 assessments ÷ 5;
+- **Term 1 subject average** = weight-averaged percentage of the student's Term 1 assessments
+  **in one subject** ÷ 5;
 - **previous failures** = the student's recorded prior failures.
+
+A UCI row is one student in one course, so the app scores **each (student, subject) pair**
+with the same model (review T-R3). The student's band is that of their highest-risk subject,
+the class list shows and sorts by that subject, the student panel lists every subject with its
+own probability, band and two factors, and the CSV export has one row per pair. A subject
+without Term 1 grades is "insufficient data" for that subject only. The earlier version
+averaged all subjects, which could hide one failing subject: a synthetic demo student scored
+low on the average (Term 1 average 10.4/20, probability 0.12) but is high risk in English
+(33.5 %, probability 0.81) and Biology (44.5 %, 0.35).
 
 Attendance is still recorded and shown in the app (student page and the trend chart next to the
 estimate) but is not part of the score. The persisted model is loaded only after its SHA-256
 matches the metadata written at training. A backend test feeds the backend the exact rows scored
-in `ml/` and checks it reproduces the same probabilities and explanations. Students without
+in `ml/` and checks it reproduces the same probabilities and explanations. Subjects without
 Term 1 grades are shown as "insufficient data" rather than guessed at.
 
 Each score is explained by **reference substitution**: how much the log-odds change if one input
 is replaced by a typical value (the training median). For logistic regression this is exact, and
-it translates directly into sentences such as "Term 1 average of 6.5/20 (32 %) is below the
-typical 11/20; this raises the estimate."
+it translates directly into sentences such as "Term 1 Mathematics average of 6.5/20 (32 %) is
+below the typical 11/20; this raises the estimate."
 
 ## Guard-rails in the product
 
@@ -172,7 +185,9 @@ typical 11/20; this raises the estimate."
 - **Different place, different time.** The model encodes two Portuguese schools in 2005–06.
   Before any real use it must be re-validated on local data (with consent and a data-protection
   assessment), and the thresholds re-chosen there.
-- **Input shift.** EduPulse averages all subjects, while the UCI G1 is per course.
+- **Input shift.** `g1` is per subject like the UCI per-course G1, but EduPulse's subjects,
+  assessments and weights differ from the two UCI courses, and a student with many subjects has
+  more chances to be flagged on one of them.
 - **Small evaluation set** (46 test fails): wide confidence intervals.
 - **Fairness beyond sex** could not be assessed with this data, and EduPulse deliberately does not
   store sex — so local monitoring would need a separate, consented process.

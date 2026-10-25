@@ -18,7 +18,8 @@ it and fails if any published (3-decimal) number differs (`python -m edupulse_ml
 | Task | Estimate the probability that a student **fails the year** (final grade below 10/20) |
 | Prediction moment | **After first-period grades** (end of Term 1): G1 is an input; G2, G3 and whole-year absences are not |
 | Model | Logistic regression (standardised inputs), scikit-learn 1.9.1 |
-| Inputs (complete list) | `g1` Term 1 average (0–20) and `failures` (previous school years failed) — nothing else |
+| Inputs (complete list) | `g1` Term 1 average **in one subject** (0–20) and `failures` (previous school years failed) — nothing else |
+| Unit scored | One (student, subject) pair, matching the training unit (one UCI row = one student in one course); a student's band is their highest-risk subject |
 | Output | Probability and a band: **high** ≥ 0.327, **medium** ≥ 0.162, **low** otherwise; per-input contributions in plain language |
 | Training data | UCI Student Performance (Cortez & Silva, 2008), CC BY 4.0, DOI 10.24432/C5TG7T |
 | Owner | EduPulse project; model file SHA-256 `0d6716084619bfa3b08a3a007454c387a2d21bd79865ad8cdda3586f56b51169` |
@@ -35,9 +36,10 @@ it and fails if any published (3-decimal) number differs (`python -m edupulse_ml
 - Teachers see scores only for their own classes; every view and export of scores is recorded
   in an audit log.
 
-**Out of scope:** use outside secondary schools; use on individual subjects; use before any
-Term 1 grade exists (the app shows "insufficient data" instead); any use on real students before
-local re-validation (see Limitations).
+**Out of scope:** use outside secondary schools; scoring an average across subjects (the model
+was trained on one course per row); use before any Term 1 grade exists in a subject (the app
+shows "insufficient data" for that subject instead); any use on real students before local
+re-validation (see Limitations).
 
 ## Data
 
@@ -49,6 +51,10 @@ local re-validation (see Limitations).
   EduPulse forms 662 identity groups, 366 of which have rows in both files (9 groups with more
   than two rows are attribute collisions and are kept together). **Grouped splitting:** no group
   is on both sides of the holdout (0) or of any of the 15 CV folds (0 in each).
+- **Limit of the identity key.** The 13 attributes are not a unique identifier: two distinct
+  students with identical values on all 13 fall into one group. That can only merge students,
+  never split one, so it keeps more rows together than strictly necessary and makes the splits
+  more conservative (never leakier).
 - Files verified by SHA-256 on every load (`ml/data/SOURCE.md`).
 - **Not available at the prediction moment, never inputs:** G2 and G3 (later grades) and
   `absences` (a whole-year count in the UCI data — removed in review T-R2).
@@ -76,7 +82,9 @@ local re-validation (see Limitations).
 3. Selection: best mean CV AP, simpler model within 0.01 → logistic regression (0.769) over
    gradient boosting (0.761).
 4. Thresholds from **out-of-fold predictions only**: high = highest threshold reaching 80 %
-   recall (0.327); medium = 95 % recall (0.162).
+   recall (0.327); medium = 95 % recall (0.162). Each training row is scored out-of-fold once
+   per CV repeat; the thresholds are chosen on **each row's mean OOF probability over the 3
+   repeats** (one averaged score per row, 835 rows), not on the 3 × 835 individual scores.
 5. Refit on the 80 %; the **test set is scored once** (enforced by a holdout guard: decisions are
    frozen first, each model can be scored once); 95 % CIs from 2,000 student-level bootstrap
    resamples.
@@ -139,8 +147,9 @@ not evidence of fairness**. Staff should not read a low score as reassurance for
 ## Explanations
 
 Each score lists both inputs with their effect in log-odds against a typical value (the training
-median: Term 1 average 11/20, 0 failures), sorted by size, in plain language — e.g. "Term 1
-average of 6.5/20 (32 %) is below the typical 11/20; this raises the estimate." For logistic
+median: Term 1 subject average 11/20, 0 failures), sorted by size, in plain language — e.g.
+"Term 1 Mathematics average of 6.5/20 (32 %) is below the typical 11/20; this raises the
+estimate." In the app every subject has its own two factors. For logistic
 regression this attribution is exact. Coefficients per standard deviation: Term 1 average
 −2.772, failures +0.257.
 
@@ -148,12 +157,21 @@ regression this attribution is exact. Coefficients per standard deviation: Term 
 
 | Model input | UCI definition | EduPulse source (column / computation) | What synthetic demo students get |
 |---|---|---|---|
-| `g1` | First-period grade, 0–20, per course | `grades.score` / `assessments.max_score` for Term 1 assessments, weight-averaged across subjects, ÷ 5 | Computed from their seeded synthetic Term 1 grades (no constant, no imputation) |
+| `g1` | First-period grade, 0–20, per course | **Per subject:** `grades.score` / `assessments.max_score` × 100 for the student's Term 1 assessments in that subject (via `teaching_assignments.subject_id`), weight-averaged with `assessments.weight`, ÷ 5. Never averaged across subjects | Computed from their seeded synthetic Term 1 grades in each subject (no constant, no imputation) |
 | `failures` | Past class failures | `students.prior_failures` (0–3) | The seeded synthetic value of that column |
 
+**Unit of scoring (review T-R3).** A UCI row is one student in one course, so EduPulse scores each
+(student, subject) pair with the same model and the student's single `failures` value. The
+subjects are those taught in the student's class plus any subject they were graded in during
+Term 1. The student's band and probability are those of the **highest-risk subject**; the class
+list shows that subject and sorts by its probability; the student panel lists every subject with
+its probability, band and two factors; the CSV export has one row per (student, subject). A
+subject without Term 1 grades is "insufficient data" for that subject only. Until T-R3 the app
+averaged all subjects into one `g1`, which narrowed the spread and could hide a single failing
+subject; that average is no longer computed.
+
 Every input is computable by EduPulse; nothing is constant-filled or imputed. Attendance is still
-recorded and shown in the app, but it is not a model input. A student with no Term 1 grade is not
-scored ("insufficient data").
+recorded and shown in the app, but it is not a model input.
 
 ## Protocol history
 
@@ -167,8 +185,10 @@ scored ("insufficient data").
 - **Trained on Portuguese secondary-school data from 2005–06** (two schools). Grading practices
   and the meaning of a fail differ between countries, schools and years. **The model must be
   re-validated on local, consented data before any real use**, and the thresholds re-chosen there.
-- **Input shift in the app:** in the UCI data G1 is a per-course grade; EduPulse averages all
-  subjects, which narrows the spread.
+- **Input shift in the app:** `g1` is computed per subject like the UCI per-course G1, but from
+  EduPulse's own assessments and weights; subjects other than Mathematics and Portuguese were
+  never seen in training. A student with many subjects has more chances to be flagged on one of
+  them than a UCI student with one or two courses.
 - Small sample (1,044 rows, 230 fails; 46 in the test set) → wide confidence intervals.
 - Two inputs only; essentially one signal (the Term 1 grade). The model cannot see anything about
   a student's circumstances — a deliberate privacy choice, and why a human must interpret every

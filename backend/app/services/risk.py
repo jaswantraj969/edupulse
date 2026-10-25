@@ -3,9 +3,14 @@
 The model (``backend/model/model.joblib``, produced by ``ml/``) was trained on the UCI Student
 Performance data with two inputs, both of which EduPulse records itself:
 
-* ``g1``       - first-period grade on the 0-20 scale. Here: the weight-averaged percentage of
-                 the student's Term 1 assessments across all subjects, divided by 5.
+* ``g1``       - first-period grade in one course on the 0-20 scale. Here: the weight-averaged
+                 percentage of the student's Term 1 assessments in one subject, divided by 5.
 * ``failures`` - past year failures (0-3), from ``students.prior_failures``.
+
+Each UCI row is one student in one course, so EduPulse scores each (student, subject) pair
+separately with the same model and the same ``failures`` value (review T-R3). A student's band
+is that of their highest-risk subject; a subject without Term 1 grades is ``insufficient_data``
+on its own and does not affect the other subjects.
 
 The prediction moment is after first-period grades (end of Term 1). Absences are not an input:
 the UCI count covers the whole year and so is not known at that moment (review T-R2).
@@ -29,7 +34,16 @@ import pandas as pd
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
-from app.models import AcademicYear, Assessment, Grade, Student, Term
+from app.models import (
+    AcademicYear,
+    Assessment,
+    ClassGroup,
+    Grade,
+    Student,
+    Subject,
+    TeachingAssignment,
+    Term,
+)
 
 FEATURES = ("g1", "failures")
 EPS = 1e-6
@@ -92,8 +106,12 @@ def load_model(model_dir: Path) -> RiskModel:
 
 
 @dataclass
-class StudentFeatures:
+class SubjectFeatures:
+    """Model inputs for one (student, subject) pair."""
+
     student_id: int
+    subject_id: int
+    subject_name: str
     g1: float | None
     failures: int
     assessments_term1: int
@@ -117,34 +135,57 @@ def first_term(year: AcademicYear) -> Term:
 
 
 def compute_features(
-    db: Session, students: Iterable[Student], year: AcademicYear
-) -> dict[int, StudentFeatures]:
+    db: Session, students: Iterable[Student], class_group: ClassGroup
+) -> dict[int, list[SubjectFeatures]]:
+    """Per student, one entry per subject: those the class is taught plus any subject the
+    student was graded in during Term 1. ``g1`` is None for a subject without Term 1 grades."""
     student_list = list(students)
     ids = [s.id for s in student_list]
-    term = first_term(year)
+    term = first_term(class_group.academic_year)
 
     weighted = Grade.score / Assessment.max_score * 100 * Assessment.weight
     grade_rows = db.execute(
-        select(Grade.student_id, func.sum(weighted), func.sum(Assessment.weight), func.count())
+        select(
+            Grade.student_id,
+            Subject.id,
+            Subject.name,
+            func.sum(weighted),
+            func.sum(Assessment.weight),
+            func.count(),
+        )
         .join(Assessment, Assessment.id == Grade.assessment_id)
+        .join(TeachingAssignment, TeachingAssignment.id == Assessment.assignment_id)
+        .join(Subject, Subject.id == TeachingAssignment.subject_id)
         .where(Assessment.term_id == term.id, Grade.student_id.in_(ids))
-        .group_by(Grade.student_id)
+        .group_by(Grade.student_id, Subject.id, Subject.name)
     ).all()
-    grades = {
-        sid: (float(total) / float(weights) / 5, n)
-        for sid, total, weights, n in grade_rows
-        if weights
-    }
+    grades: dict[int, dict[int, tuple[str, float, int]]] = {}
+    for sid, subject_id, name, total, weights, n in grade_rows:
+        if weights:
+            grades.setdefault(sid, {})[subject_id] = (name, float(total) / float(weights) / 5, n)
+    taught = dict(
+        db.execute(
+            select(Subject.id, Subject.name)
+            .join(TeachingAssignment, TeachingAssignment.subject_id == Subject.id)
+            .where(TeachingAssignment.class_id == class_group.id)
+        ).all()
+    )
 
     out = {}
     for s in student_list:
-        g1, n = grades.get(s.id, (None, 0))
-        out[s.id] = StudentFeatures(
-            student_id=s.id,
-            g1=round(g1, 2) if g1 is not None else None,
-            failures=s.prior_failures,
-            assessments_term1=n,
-        )
+        graded = grades.get(s.id, {})
+        names = {**taught, **{k: v[0] for k, v in graded.items()}}
+        out[s.id] = [
+            SubjectFeatures(
+                student_id=s.id,
+                subject_id=subject_id,
+                subject_name=name,
+                g1=round(graded[subject_id][1], 2) if subject_id in graded else None,
+                failures=s.prior_failures,
+                assessments_term1=graded[subject_id][2] if subject_id in graded else 0,
+            )
+            for subject_id, name in sorted(names.items(), key=lambda kv: kv[1])
+        ]
     return out
 
 
@@ -162,12 +203,26 @@ class Factor:
 
 @dataclass
 class RiskResult:
-    student_id: int
+    """The score for one (student, subject) pair."""
+
+    features: SubjectFeatures
     status: Literal["scored", "insufficient_data"]
     probability: float | None = None
     band: Band | None = None
     factors: list[Factor] = field(default_factory=list)
-    features: StudentFeatures | None = None
+
+
+@dataclass
+class StudentResult:
+    """All subject scores of one student, highest risk first (unscored subjects last)."""
+
+    student_id: int
+    subjects: list[RiskResult]
+
+    @property
+    def top(self) -> RiskResult | None:
+        """The highest-risk scored subject; it sets the student's band."""
+        return self.subjects[0] if self.subjects and self.subjects[0].status == "scored" else None
 
 
 def band_for(model: RiskModel, probability: float) -> Band:
@@ -183,14 +238,14 @@ def _logit(p: float) -> float:
     return math.log(p / (1 - p))
 
 
-def _describe(name: str, feats: StudentFeatures, reference: float, raises: bool) -> str:
+def _describe(name: str, feats: SubjectFeatures, reference: float, raises: bool) -> str:
     effect = "raises" if raises else "lowers"
     if name == "g1":
         g1 = feats.g1 or 0.0
         relation = "below" if g1 < reference else "at or above"
         return (
-            f"Term 1 average of {g1:.1f}/20 ({g1 * 5:.0f}%) is {relation} the typical "
-            f"{reference:.0f}/20; this {effect} the estimate."
+            f"Term 1 {feats.subject_name} average of {g1:.1f}/20 ({g1 * 5:.0f}%) is {relation} "
+            f"the typical {reference:.0f}/20; this {effect} the estimate."
         )
     if feats.failures == 0:
         return f"No previous school-year failures; this {effect} the estimate."
@@ -198,40 +253,65 @@ def _describe(name: str, feats: StudentFeatures, reference: float, raises: bool)
     return f"Failed {feats.failures} previous school {years}; this {effect} the estimate."
 
 
-def score_students(model: RiskModel, feats: dict[int, StudentFeatures]) -> dict[int, RiskResult]:
-    """Probability, band and per-feature contributions (reference substitution, log-odds)."""
-    results = {sid: RiskResult(sid, "insufficient_data", features=f) for sid, f in feats.items()}
-    complete = [f for f in feats.values() if f.complete]
+def score_pairs(model: RiskModel, feats: list[SubjectFeatures]) -> list[RiskResult]:
+    """Probability, band and per-feature contributions (reference substitution, log-odds) for
+    each (student, subject) pair, in input order."""
+    results = [RiskResult(f, "insufficient_data") for f in feats]
+    complete = [i for i, f in enumerate(feats) if f.complete]
     if not complete:
         return results
     reference = model.reference
-    base = pd.DataFrame([f.as_row() for f in complete])
+    base = pd.DataFrame([feats[i].as_row() for i in complete])
     probs = model.probabilities(base)
     swapped_probs = {}
     for name in FEATURES:
         swapped = base.copy()
         swapped[name] = reference[name]
         swapped_probs[name] = model.probabilities(swapped)
-    for i, f in enumerate(complete):
+    for row, i in enumerate(complete):
+        f = feats[i]
         factors = []
         for name in FEATURES:
-            contribution = _logit(probs[i]) - _logit(swapped_probs[name][i])
+            contribution = _logit(probs[row]) - _logit(swapped_probs[name][row])
             factors.append(
                 Factor(
                     feature=name,
-                    value=float(base.iloc[i][name]),
+                    value=float(base.iloc[row][name]),
                     contribution=round(contribution, 4),
                     direction="raises" if contribution > 0 else "lowers",
                     text=_describe(name, f, reference[name], contribution > 0),
                 )
             )
         factors.sort(key=lambda fac: abs(fac.contribution), reverse=True)
-        results[f.student_id] = RiskResult(
-            student_id=f.student_id,
-            status="scored",
-            probability=round(probs[i], 4),
-            band=band_for(model, probs[i]),
-            factors=factors,
+        results[i] = RiskResult(
             features=f,
+            status="scored",
+            probability=round(probs[row], 4),
+            band=band_for(model, probs[row]),
+            factors=factors,
         )
     return results
+
+
+def score_students(
+    model: RiskModel, feats: dict[int, list[SubjectFeatures]]
+) -> dict[int, StudentResult]:
+    """Score every (student, subject) pair in one pass and group the results by student."""
+    flat = [f for subject_feats in feats.values() for f in subject_feats]
+    by_student: dict[int, list[RiskResult]] = {sid: [] for sid in feats}
+    for result in score_pairs(model, flat):
+        by_student[result.features.student_id].append(result)
+    return {
+        sid: StudentResult(
+            sid,
+            sorted(
+                results,
+                key=lambda r: (
+                    r.probability is None,
+                    -(r.probability or 0.0),
+                    r.features.subject_name,
+                ),
+            ),
+        )
+        for sid, results in by_student.items()
+    }

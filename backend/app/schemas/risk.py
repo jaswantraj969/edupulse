@@ -33,9 +33,21 @@ class RiskFactor(BaseModel):
 
 
 class RiskInputs(BaseModel):
-    g1: float | None = Field(description="Term 1 average on the 0-20 scale")
+    g1: float | None = Field(description="Term 1 average in this subject on the 0-20 scale")
     failures: int
-    assessments_term1: int
+    assessments_term1: int = Field(description="Graded Term 1 assessments in this subject")
+
+
+class SubjectRisk(BaseModel):
+    """The score for one (student, subject) pair; the model's training unit is one course."""
+
+    subject_id: int
+    subject_name: str
+    status: Status
+    probability: float | None
+    band: Band | None
+    factors: list[RiskFactor]
+    inputs: RiskInputs
 
 
 class StudentRiskRow(BaseModel):
@@ -43,11 +55,15 @@ class StudentRiskRow(BaseModel):
     student_no: str
     first_name: str
     last_name: str
-    status: Status
-    probability: float | None
-    band: Band | None
+    status: Status = Field(description="scored when at least one subject has Term 1 grades")
+    probability: float | None = Field(description="Of the highest-risk subject")
+    band: Band | None = Field(description="Of the highest-risk subject")
+    top_subject_id: int | None
+    top_subject: str | None = Field(description="Name of the highest-risk subject")
     top_factor: str | None
-    inputs: RiskInputs | None
+    inputs: RiskInputs | None = Field(description="Inputs of the highest-risk subject")
+    subjects_scored: int
+    subjects_insufficient: int
 
 
 class ClassRisk(BaseModel):
@@ -67,8 +83,8 @@ class StudentRisk(BaseModel):
     class_name: str | None
     as_of: date | None
     status: Status
-    probability: float | None
-    band: Band | None
-    factors: list[RiskFactor]
-    inputs: RiskInputs | None
+    probability: float | None = Field(description="Of the highest-risk subject")
+    band: Band | None = Field(description="Of the highest-risk subject")
+    top_subject: str | None
+    subjects: list[SubjectRisk] = Field(description="Every subject, highest risk first")
     model: RiskModelInfo

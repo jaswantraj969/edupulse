@@ -270,6 +270,17 @@ export interface RiskFactor {
   text: string
 }
 
+export interface SubjectRisk {
+  subject_id: number
+  subject_name: string
+  status: 'scored' | 'insufficient_data'
+  probability: number | null
+  band: RiskBand | null
+  factors: RiskFactor[]
+  inputs: RiskInputs
+}
+
+/** One student in the class list, shown with their highest-risk subject. */
 export interface StudentRiskRow {
   student_id: number
   student_no: string
@@ -278,8 +289,12 @@ export interface StudentRiskRow {
   status: 'scored' | 'insufficient_data'
   probability: number | null
   band: RiskBand | null
+  top_subject_id: number | null
+  top_subject: string | null
   top_factor: string | null
   inputs: RiskInputs | null
+  subjects_scored: number
+  subjects_insufficient: number
 }
 
 export interface ClassRisk {
@@ -290,11 +305,20 @@ export interface ClassRisk {
   students: StudentRiskRow[]
 }
 
-export interface StudentRisk extends Omit<StudentRiskRow, 'top_factor'> {
+export interface StudentRisk {
+  student_id: number
+  student_no: string
+  first_name: string
+  last_name: string
   class_id: number | null
   class_name: string | null
   as_of: string | null
-  factors: RiskFactor[]
+  status: 'scored' | 'insufficient_data'
+  probability: number | null
+  band: RiskBand | null
+  top_subject: string | null
+  /** Every subject, highest risk first; subjects without Term 1 grades last. */
+  subjects: SubjectRisk[]
   model: RiskModelInfo
 }
 

@@ -33,7 +33,9 @@ More in [`docs/screenshots/`](docs/screenshots/) (login, students, grades, dark 
   view).
 - **Early warning:** per-class risk list (sortable), per-student panel with risk band, the
   factors behind it, attendance and grade trends with the prediction moment marked; CSV export.
-  The estimate uses only the Term 1 average and previous failures.
+  Each subject is scored separately (the model's training unit is one course); a student's band
+  is their highest-risk subject. The estimate uses only the Term 1 subject average and previous
+  failures.
 - **Roles:** administrators see everything; teachers see only their own classes and students
   and can change grades only for subjects they teach.
 - **Security:** argon2 passwords, short-lived JWT access tokens + rotating httpOnly refresh
@@ -108,7 +110,7 @@ Numbers from [`ml/reports/run_record.md`](ml/reports/run_record.md) (reproduced 
 |---|---|
 | Data | UCI Student Performance (Cortez & Silva, 2008; CC BY 4.0): 1,044 course records, 662 students, 22.0 % fail |
 | Prediction moment | After first-period grades (end of Term 1); later grades and whole-year absences never used |
-| Inputs | Term 1 average and previous-year failures only (no attendance, sex, age or family/socio-economic data) |
+| Inputs | Term 1 average in one subject and previous-year failures only (no attendance, sex, age or family/socio-economic data); each (student, subject) pair is scored |
 | Model | Logistic regression v1.1.0, chosen over gradient boosting by a pre-registered rule; new holdout after review T-R2 |
 | Cross-validated average precision | 0.769 ± 0.062 (dummy baseline 0.220 ± 0.002) |
 | Held-out test (scored once) | AP **0.845** [95 % CI 0.740–0.924], ROC AUC 0.953 [0.924–0.977] |
@@ -145,8 +147,8 @@ PostgreSQL 16, the ML reproduction check, Playwright with axe, and dependency au
 
 ## Limitations
 
-- The model reflects 2005–06 Portuguese data; EduPulse's Term 1 average is a multi-subject
-  average rather than a per-course grade. Re-validate locally before real use.
+- The model reflects 2005–06 Portuguese data (two courses); EduPulse scores its own subjects
+  with it, one subject at a time. Re-validate locally before real use.
 - Only one academic year is active at a time; there is no year-rollover workflow.
 - The login rate limiter is per process; multiple API replicas need a shared store.
 - No HTTPS termination in the compose setup; enable `EDUPULSE_HSTS` behind TLS.
