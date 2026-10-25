@@ -523,3 +523,176 @@ $ for i in 1..6: curl -s -o /dev/null -w "%{http_code} " -X POST .../auth/login 
 ```
 
 Notes: the Postgres block filters Alembic's `Detected sequence`/`setting up autogenerate` INFO lines; the demo password and access token are replaced by placeholders in the smoke-test command lines. The rate-limit run shows five 401s then 429 because the API's default limit is 5 failures per minute per account.
+
+## M3 — Core API (2026-10-25)
+
+Scope: CRUD with search, filters, sorting and pagination for students, teachers, staff and classes; subjects and academic years; class rosters, enrolments and teaching assignments; bulk daily attendance per class; assessments and bulk grade entry (score <= max enforced); CSV import (validated, all-or-nothing, per-row errors, dry run) and formula-safe export for students/teachers/staff; dashboard aggregates; OpenAPI at /api/v1/docs. Tests include validation errors and 404/403/409 cases.
+
+### Gate output (scripts/gate.sh)
+
+```text
+$ (cd backend && uv run ruff check .)
+All checks passed!
+[exit 0]
+
+$ (cd backend && uv run ruff format --check .)
+66 files already formatted
+[exit 0]
+
+$ (cd backend && uv run mypy app tests)
+Success: no issues found in 65 source files
+
+[exit 0]
+
+$ (cd backend && uv run pytest --cov --cov-report=term-missing -p no:cacheprovider)
+........................................................................ [ 53%]
+
+...............................................................          [100%]
+
+=============================== tests coverage ================================
+
+______________ coverage: platform win32, python 3.12.13-final-0 _______________
+
+
+
+Name                            Stmts   Miss Branch BrPart  Cover   Missing
+
+---------------------------------------------------------------------------
+
+app\api\routes\assessments.py     130      1     42      2    98%   63, 177->176
+
+app\api\routes\auth.py             75      0     18      1    99%   136->142
+
+app\api\routes\catalog.py          42      0      4      1    98%   44->46
+
+app\api\routes\classes.py         152      0     40      1    99%   163->167
+
+app\api\routes\dashboard.py        55      0     20      3    96%   51->53, 73->75, 100->99
+
+app\api\routes\staff.py            64      0      6      3    96%   67->69, 69->71, 71->73
+
+app\api\routes\students.py        133      1     24      1    99%   89
+
+app\core\errors.py                 40      1      0      0    98%   106
+
+app\seed.py                       206      3     62      2    98%   182-183, 452
+
+app\services\auth.py               49      1     14      2    95%   41, 92->exit
+
+app\services\csv_io.py            115      1     42      3    97%   55->57, 57->59, 89
+
+---------------------------------------------------------------------------
+
+TOTAL                            2149      8    368     19    99%
+
+
+
+32 files skipped due to complete coverage.
+
+135 passed in 63.90s (0:01:03)
+
+[exit 0]
+
+$ (cd ml && uv run ruff check .)
+All checks passed!
+[exit 0]
+
+$ (cd ml && uv run ruff format --check .)
+3 files already formatted
+[exit 0]
+
+$ (cd ml && uv run mypy edupulse_ml tests)
+Success: no issues found in 3 source files
+
+[exit 0]
+
+$ (cd ml && uv run pytest --cov -p no:cacheprovider)
+.                                                                        [100%]
+
+=============================== tests coverage ================================
+
+______________ coverage: platform win32, python 3.12.13-final-0 _______________
+
+
+
+Name                      Stmts   Miss Branch BrPart  Cover
+
+-----------------------------------------------------------
+
+edupulse_ml\__init__.py       1      0      0      0   100%
+
+-----------------------------------------------------------
+
+TOTAL                         1      0      0      0   100%
+
+1 passed in 0.10s
+
+[exit 0]
+
+$ (cd frontend && npm run lint)
+
+> edupulse-web@0.1.0 lint
+> eslint . --max-warnings=0
+
+[exit 0]
+
+$ (cd frontend && npm run typecheck)
+
+> edupulse-web@0.1.0 typecheck
+> tsc -b --noEmit
+
+[exit 0]
+
+$ (cd frontend && npm test)
+
+> edupulse-web@0.1.0 test
+> vitest run
+
+
+ RUN  v5.0.5 <repo>/frontend
+
+
+ Test Files  1 passed (1)
+      Tests  1 passed (1)
+   Start at  17:02:48
+   Duration  2.17s (environment 73%, setup 11%, tests 10%, import 4%, transform 2%, worker 1%)
+
+[exit 0]
+
+$ (cd frontend && npm run build)
+
+> edupulse-web@0.1.0 build
+> tsc -b && vite build
+
+vite v8.3.5 building client environment for production...
+transforming...
+✓ 16 modules transformed.
+rendering chunks...
+computing gzip size...
+dist/index.html                   0.53 kB │ gzip:  0.32 kB
+dist/assets/index-BmbyWbE2.css    6.50 kB │ gzip:  1.94 kB
+dist/assets/index-Cz-iWIdB.js   219.63 kB │ gzip: 68.63 kB
+
+✓ built in 250ms
+[exit 0]
+
+GATE RESULT: PASS
+```
+
+### Live smoke test against docker compose (Postgres 16, seeded synthetic data)
+
+```text
+GET /dashboard -> 200 counts {'students': 400, 'teachers': 30, 'staff': 15, 'classes': 15} | weeks 37 | first week {'week_start': '2025-09-08', 'attendance_rate': 0.9405, 'records': 2000} | buckets {'0-10': 0, '10-20': 0, '20-30': 0, '30-40': 11, '40-50': 49, '50-60': 81, '60-70': 127, '70-80': 93, '80-90': 33, '90-100': 6}
+GET /students?q=st2500&sort=student_no&order=desc&page_size=3 -> 200 total 99 [('ST250099', '11-D'), ('ST250098', '11-C'), ('ST250097', '11-B')]
+GET /classes/{id}/attendance?date=2025-10-06 -> 200 class 10-A rows 27 statuses ['excused', 'present']
+PUT /classes/{id}/attendance (same status, idempotent) -> 200
+GET /classes/{id}/assessments -> 200 count 48 first Term 1 Quiz Mathematics graded 27
+GET /assessments/{id}/grades -> 200 rows 27
+GET /students/{id}/attendance -> 200 {'present': 176, 'absent': 3, 'late': 4, 'excused': 2, 'total': 185, 'attendance_rate': 0.973}
+GET /students/export -> 200 lines 401 header student_no,first_name,last_name,date_of_birth,email,phone,guardian_name,guardian_phone,enrolled_on,status,prior_failures,class_name
+teacher TCH001: GET /classes -> 200 own classes ['10-A', '10-E', '11-D', '11-E', '12-C']
+teacher TCH001: GET /classes/{other} -> 403 | POST /students -> 403 | GET /staff -> 403
+teacher TCH001: GET /dashboard -> 200 my_classes {'students': 134, 'teachers': 18, 'staff': 15, 'classes': 5}
+```
+
+The smoke test is a throw-away script (Python stdlib HTTP client) kept outside the repository; its printed output is pasted as produced.

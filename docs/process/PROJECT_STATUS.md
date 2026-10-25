@@ -8,7 +8,7 @@ its output recorded in `REVIEW_PACKET.md`; it is not a claim of external verific
 | M0 Skeleton | done | see git log (M0) |
 | M1 Data model + migrations | done | see git log (M1) |
 | M2 Auth + security | done | see git log (M2) |
-| M3 Core API | not started | — |
+| M3 Core API | done | see git log (M3) |
 | M4 Frontend core | not started | — |
 | M5 ML early-warning | not started | — |
 | M6 ML in the UI | not started | — |
@@ -18,7 +18,7 @@ its output recorded in `REVIEW_PACKET.md`; it is not a claim of external verific
 
 ## Resume point
 
-Start of M3 (core API).
+Start of M4 (frontend core).
 
 ## Decisions
 
@@ -49,7 +49,17 @@ Start of M3 (core API).
 | D23 | M2 | Error shape `{"error": {"code", "message", "details"}}` for every error, including validation errors (`details` lists field/message/type). | One format for the frontend and the M7 hardening work. |
 | D24 | M2 | Unknown e-mail logins still run an argon2 verification against a dummy hash. | Prevents account enumeration through response timing. |
 | D25 | M2 | A teacher requesting an existing class/student outside their scope gets 403; a non-existent id gets 404. | Matches the brief's 403/404 distinction; ids are not secret. |
+| D26 | M3 | List endpoints share one contract: `page` (1-based), `page_size` (≤ 100), `sort` (allow-listed per resource), `order`, `q` (case-insensitive substring); response `{items, total, page, page_size}`. Unknown sort fields are 422. | Predictable for the UI; sorting is never driven by raw user input. |
+| D27 | M3 | CSV import is all-or-nothing: every row is validated (schema, duplicates within the file and against the DB, unknown classes) and any error returns 422 with `details.errors = [{row, field, message}]`; `dry_run=true` validates only. Limits: 2 MiB, 5000 rows, UTF-8. | Partial imports are hard for staff to reconcile; line numbers match the spreadsheet. |
+| D28 | M3 | CSV export prefixes cells starting with `= + - @ tab CR` with `'`; import strips that prefix again. | Prevents spreadsheet formula injection while keeping export → import round-trips lossless. |
+| D29 | M3 | Students list/export joins the student's class in the *current* academic year (latest start date). | One active year at a time; history stays in enrolments. |
+| D30 | M3 | Teachers can read the teacher directory; staff records are admin-only; student writes are admin-only. | Least privilege: teachers need colleagues' names, not HR data. |
+| D31 | M3 | Assessments and grades can be changed only by admins or the teacher of that subject in that class; homeroom teachers can read them. | Prevents one teacher altering another's marks. |
+| D32 | M3 | Deletes that would destroy linked data are refused with 409 (teacher with assignments, class with students, assignment with assessments, subject in use); deleting a student or assessment cascades. An `IntegrityError` handler maps any remaining constraint race to 409 without echoing DB details. | Explicit, recoverable errors instead of silent cascades. |
+| D33 | M3 | Attendance dates must be inside the class's academic year and not in the future; weekends are allowed. | Some schools teach on Saturdays. |
+| D34 | M3 | Starlette's TestClient now prefers `httpx2`; the dev dependency switched from `httpx` to `httpx2`. | Removes the deprecation warning instead of suppressing it. |
 
 ## Deviations and limitations
 
 - Login rate-limit state is per API process; a multi-instance deployment would need a shared store (e.g. Redis). (M2)
+- Academic years and terms are read-only through the API (created by the seed/migrations); a year-rollover workflow is out of scope. (M3)

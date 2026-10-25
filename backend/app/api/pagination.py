@@ -12,6 +12,9 @@ from app.core.errors import AppError
 
 MAX_PAGE_SIZE = 100
 
+# Any select statement, whatever its column types (Select is variadic in SQLAlchemy 2.1).
+type AnySelect = Select[*tuple[Any, ...]]
+
 
 class PageParams(BaseModel):
     page: int
@@ -53,12 +56,12 @@ def search_clause(
 
 
 def apply_sort(
-    stmt: Select[Any],
+    stmt: AnySelect,
     params: PageParams,
     sortable: Mapping[str, InstrumentedAttribute[Any] | ColumnElement[Any]],
     default: str,
     tiebreaker: InstrumentedAttribute[Any],
-) -> Select[Any]:
+) -> AnySelect:
     key = params.sort or default
     column = sortable.get(key)
     if column is None:
@@ -71,7 +74,20 @@ def apply_sort(
     return stmt.order_by(ordered, tiebreaker.asc())
 
 
-def paginate(db: Session, stmt: Select[Any], params: PageParams) -> tuple[list[Any], int]:
-    total = db.scalar(select(func.count()).select_from(stmt.order_by(None).subquery())) or 0
-    rows = db.scalars(stmt.limit(params.page_size).offset((params.page - 1) * params.page_size))
-    return list(rows.unique().all()), total
+def count_rows(db: Session, stmt: AnySelect) -> int:
+    return db.scalar(select(func.count()).select_from(stmt.order_by(None).subquery())) or 0
+
+
+def _window(stmt: AnySelect, params: PageParams) -> AnySelect:
+    return stmt.limit(params.page_size).offset((params.page - 1) * params.page_size)
+
+
+def paginate(db: Session, stmt: AnySelect, params: PageParams) -> tuple[list[Any], int]:
+    """Paginate a single-entity select; returns ``(objects, total)``."""
+    rows = db.scalars(_window(stmt, params))
+    return list(rows.unique().all()), count_rows(db, stmt)
+
+
+def paginate_rows(db: Session, stmt: AnySelect, params: PageParams) -> tuple[list[Any], int]:
+    """Paginate a multi-column select; returns ``(rows, total)``."""
+    return list(db.execute(_window(stmt, params)).all()), count_rows(db, stmt)

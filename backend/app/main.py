@@ -3,7 +3,18 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from app.api.routes import auth, classes, health
+from app.api.routes import (
+    assessments,
+    attendance,
+    auth,
+    catalog,
+    classes,
+    dashboard,
+    health,
+    staff,
+    students,
+    teachers,
+)
 from app.core.config import Settings, get_settings
 from app.core.errors import install_error_handlers
 from app.core.rate_limit import LoginRateLimiter
@@ -34,7 +45,19 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         allow_headers=["Authorization", "Content-Type", "X-Request-ID"],
     )
     install_error_handlers(app)
-    for router in (health.router, auth.router, classes.router):
+    routers = (
+        health.router,
+        auth.router,
+        dashboard.router,
+        students.router,
+        teachers.router,
+        staff.router,
+        classes.router,
+        attendance.router,
+        assessments.router,
+        catalog.router,
+    )
+    for router in routers:
         app.include_router(router, prefix=API_PREFIX)
     return app
 

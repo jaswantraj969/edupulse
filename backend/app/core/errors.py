@@ -11,6 +11,7 @@ from fastapi import FastAPI, HTTPException, Request, status
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel
+from sqlalchemy.exc import IntegrityError
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
 _DEFAULT_CODES = {
@@ -96,4 +97,13 @@ def install_error_handlers(app: FastAPI) -> None:
         return JSONResponse(
             _body("validation_error", "Request validation failed", details),
             status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+        )
+
+    @app.exception_handler(IntegrityError)
+    async def _integrity_error(_request: Request, _exc: IntegrityError) -> JSONResponse:
+        # Route handlers pre-check uniqueness and references for friendly messages; this is the
+        # backstop for races. Database details are not echoed to the client.
+        return JSONResponse(
+            _body("conflict", "The change conflicts with existing data"),
+            status_code=status.HTTP_409_CONFLICT,
         )
