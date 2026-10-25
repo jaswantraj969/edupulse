@@ -11,14 +11,14 @@ its output recorded in `REVIEW_PACKET.md`; it is not a claim of external verific
 | M3 Core API | done | see git log (M3) |
 | M4 Frontend core | done | see git log (M4) |
 | M5 ML early-warning | done | see git log (M5) |
-| M6 ML in the UI | not started | — |
+| M6 ML in the UI | done | see git log (M6) |
 | M7 Hardening | not started | — |
 | M8 Docs + release | not started | — |
 | M9 Publish | not started | — |
 
 ## Resume point
 
-Start of M6 (ML in the UI, audit log).
+Start of M7 (hardening).
 
 ## Decisions
 
@@ -77,6 +77,11 @@ Start of M6 (ML in the UI, audit log).
 | D51 | M5 | App mapping: g1 = weight-averaged Term 1 percentage across subjects ÷ 5; absences = Term 1 "absent" days projected to the year by school-day ratio (excused not counted); students without Term 1 grades are "insufficient data". | Same features from EduPulse data; limitations stated in the model card. |
 | D52 | M5 | `EDUPULSE_DEMO_MODE` (default true) adds "Demo — synthetic data" to every risk response. | Scores on synthetic data must never look real. |
 | D53 | M5 | CI job re-downloads the dataset, verifies hashes and reproduces the committed metrics within 1e-6. | Published numbers are reproducible, not hand-copied. |
+| D54 | M6 | Audit log records every successful risk view (class list, student panel) and export with user id + e-mail copy, action, target, IP and time; written and committed before the response is built; denied requests are not logged as views. Admin-only read API and page. | Accountability for sensitive scores; a request that cannot be logged returns no scores. |
+| D55 | M6 | Risk CSV export repeats the decision-support (and demo) notice on every row and uses a `-demo` filename suffix in demo mode. | The caveat travels with the data. |
+| D56 | M6 | Risk bands shown as text badges ("High risk"), factors as "↑ Raises / ↓ Lowers" chips plus sentences; trend shown as two single-series charts (attendance rate, average grade) with the prediction moment marked. | Never colour-only; no dual axis. |
+| D57 | M6 | "Early warning" is a top-level page; on mobile it lives in the "More" menu with Classes/Teachers. | Keeps the bottom bar to four daily tasks. |
+| D58 | M6 | Sign-out records the reason; the auth guard keeps the "return to" location only after session expiry. | The next person on a shared computer does not land on the previous user's page. |
 
 ## Deviations and limitations
 

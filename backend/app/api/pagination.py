@@ -70,8 +70,10 @@ def apply_sort(
             f"Cannot sort by '{key}'",
             details={"allowed": sorted(sortable)},
         )
-    ordered = column.desc() if params.order == "desc" else column.asc()
-    return stmt.order_by(ordered, tiebreaker.asc())
+    if params.order == "desc":
+        # The tie-breaker follows the direction so equal keys keep a consistent order.
+        return stmt.order_by(column.desc(), tiebreaker.desc())
+    return stmt.order_by(column.asc(), tiebreaker.asc())
 
 
 def count_rows(db: Session, stmt: AnySelect) -> int:

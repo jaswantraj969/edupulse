@@ -8,6 +8,7 @@ from app.models.academic import (
     TeachingAssignment,
     Term,
 )
+from app.models.audit import AuditAction, AuditLog
 from app.models.auth import RefreshToken
 from app.models.enums import AssessmentKind, AttendanceStatus, Role, StudentStatus
 from app.models.people import Staff, Student, Teacher
@@ -20,6 +21,8 @@ __all__ = [
     "AssessmentKind",
     "AttendanceRecord",
     "AttendanceStatus",
+    "AuditAction",
+    "AuditLog",
     "ClassGroup",
     "Enrolment",
     "Grade",

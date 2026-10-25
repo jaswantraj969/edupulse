@@ -18,9 +18,11 @@ const NAV_ITEMS: NavItem[] = [
   { to: '/students', label: 'Students', icon: 'students', primary: true },
   { to: '/attendance', label: 'Attendance', icon: 'attendance', primary: true },
   { to: '/grades', label: 'Grades', icon: 'grades', primary: true },
+  { to: '/early-warning', label: 'Early warning', icon: 'risk' },
   { to: '/classes', label: 'Classes', icon: 'classes' },
   { to: '/teachers', label: 'Teachers', icon: 'teachers' },
   { to: '/staff', label: 'Staff', icon: 'staff', adminOnly: true },
+  { to: '/audit', label: 'Audit log', icon: 'audit', adminOnly: true },
 ]
 
 function navClass({ isActive }: { isActive: boolean }): string {

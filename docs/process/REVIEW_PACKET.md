@@ -1142,3 +1142,237 @@ probability: median 0.009 p90 0.379 max 0.980
 ```
 
 ML results (copied from ml/reports/run_record.md): chosen model logistic regression; CV AP 0.803 ± 0.057 (dummy 0.220 ± 0.002, gradient boosting 0.800 ± 0.036); test AP 0.817 [0.705, 0.901], ROC AUC 0.936 [0.900, 0.966]; at threshold 0.315 precision 0.627 [0.500, 0.740], recall 0.804 [0.674, 0.915]; recall gap F-M +0.083 (test), +0.056 (out-of-fold). The demo population count of 402 includes two students left behind by the first (failed) M4 e2e run; the database is reseeded before screenshots in M8.
+
+## M6 — ML in the UI (2026-10-25)
+
+Scope: Early-warning list per class (sortable by estimate or name; band always written out; main factor in plain language; CSV export), per-student panel (band, estimate, all factors with raises/lowers, Term 1 inputs, monthly attendance and grade trend charts with the prediction moment marked, data tables), a visible disclaimer ('Decision support; review with the student's context.') plus 'Demo — synthetic data' label on every early-warning screen, model details with test metrics and CIs; teachers limited to their classes (API-enforced); append-only audit log of risk views and exports (migration 3) with an admin audit page.
+
+### Gate output (scripts/gate.sh --e2e)
+
+```text
+$ (cd backend && uv run ruff check .)
+All checks passed!
+[exit 0]
+
+$ (cd backend && uv run ruff format --check .)
+74 files already formatted
+[exit 0]
+
+$ (cd backend && uv run mypy app tests)
+Success: no issues found in 73 source files
+
+[exit 0]
+
+$ (cd backend && uv run pytest --cov --cov-report=term-missing -p no:cacheprovider)
+........................................................................ [ 46%]
+
+........................................................................ [ 93%]
+
+..........                                                               [100%]
+
+=============================== tests coverage ================================
+
+______________ coverage: platform win32, python 3.12.13-final-0 _______________
+
+
+
+Name                            Stmts   Miss Branch BrPart  Cover   Missing
+
+---------------------------------------------------------------------------
+
+app\api\routes\assessments.py     130      1     42      2    98%   63, 177->176
+
+app\api\routes\auth.py             75      0     18      1    99%   136->142
+
+app\api\routes\catalog.py          42      0      4      1    98%   44->46
+
+app\api\routes\classes.py         152      0     40      1    99%   163->167
+
+app\api\routes\dashboard.py        55      0     20      3    96%   51->53, 73->75, 100->99
+
+app\api\routes\staff.py            64      0      6      3    96%   67->69, 69->71, 71->73
+
+app\api\routes\students.py        133      1     24      1    99%   89
+
+app\core\errors.py                 40      1      0      0    98%   106
+
+app\seed.py                       206      3     62      2    98%   182-183, 452
+
+app\services\auth.py               49      1     14      2    95%   41, 92->exit
+
+app\services\csv_io.py            115      1     42      3    97%   55->57, 57->59, 89
+
+app\services\risk.py              150      2     30      2    98%   136, 214
+
+---------------------------------------------------------------------------
+
+TOTAL                            2510     10    416     21    99%
+
+
+
+37 files skipped due to complete coverage.
+
+154 passed in 77.75s (0:01:17)
+
+[exit 0]
+
+$ (cd ml && uv run ruff check .)
+All checks passed!
+[exit 0]
+
+$ (cd ml && uv run ruff format --check .)
+16 files already formatted
+[exit 0]
+
+$ (cd ml && uv run mypy edupulse_ml tests)
+Success: no issues found in 14 source files
+
+[exit 0]
+
+$ (cd ml && uv run pytest --cov -p no:cacheprovider)
+...................                                                      [100%]
+
+=============================== tests coverage ================================
+
+______________ coverage: platform win32, python 3.12.13-final-0 _______________
+
+
+
+Name                       Stmts   Miss Branch BrPart  Cover
+
+------------------------------------------------------------
+
+edupulse_ml\__init__.py        1      0      0      0   100%
+
+edupulse_ml\data.py           57      5     18      1    89%
+
+edupulse_ml\evaluate.py       45      1     12      1    96%
+
+edupulse_ml\explain.py        17      0      2      0   100%
+
+edupulse_ml\export.py         14     14      2      0     0%
+
+edupulse_ml\features.py       21      0      0      0   100%
+
+edupulse_ml\report.py         34      0     14      1    98%
+
+edupulse_ml\reproduce.py      31      9     14      0    76%
+
+edupulse_ml\train.py         135      1     22      2    98%
+
+------------------------------------------------------------
+
+TOTAL                        355     30     84      5    91%
+
+19 passed in 55.54s
+
+[exit 0]
+
+$ (cd frontend && npm run lint)
+
+> edupulse-web@0.1.0 lint
+> eslint . --max-warnings=0
+
+[exit 0]
+
+$ (cd frontend && npm run typecheck)
+
+> edupulse-web@0.1.0 typecheck
+> tsc -b --noEmit
+
+[exit 0]
+
+$ (cd frontend && npm test)
+
+> edupulse-web@0.1.0 test
+> vitest run
+
+
+ RUN  v5.0.5 <repo>/frontend
+
+Not implemented: navigation to another Document
+
+ Test Files  8 passed (8)
+      Tests  38 passed (38)
+   Start at  18:11:57
+   Duration  6.87s (environment 56%, tests 26%, setup 8%, import 8%, transform 1%, worker 1%)
+
+[exit 0]
+
+$ (cd frontend && npm run build)
+
+> edupulse-web@0.1.0 build
+> tsc -b && vite build
+
+vite v8.3.5 building client environment for production...
+transforming...
+✓ 778 modules transformed.
+rendering chunks...
+computing gzip size...
+dist/index.html                              0.61 kB │ gzip:   0.36 kB
+dist/assets/index-Cr2T3bYc.css              35.91 kB │ gzip:   7.31 kB
+dist/assets/coerce-CHtFiwVw.js               0.09 kB │ gzip:   0.10 kB
+dist/assets/queries-CfSZjk6g.js              0.51 kB │ gzip:   0.26 kB
+dist/assets/classSchema-D5ATFxNC.js          0.57 kB │ gzip:   0.33 kB
+dist/assets/ClassPicker-B_luxRtQ.js          0.66 kB │ gzip:   0.41 kB
+dist/assets/format-DqLuBCE3.js               0.66 kB │ gzip:   0.44 kB
+dist/assets/schemas-sqRQT-v-.js              0.93 kB │ gzip:   0.48 kB
+dist/assets/RecordFormDialog-Dj_64n7V.js     1.83 kB │ gzip:   0.98 kB
+dist/assets/LoginPage-B_wAODlH.js            1.98 kB │ gzip:   1.03 kB
+dist/assets/AuditLogPage-BbUk_y-m.js         2.04 kB │ gzip:   1.04 kB
+dist/assets/ListToolbar-CtPURdpS.js          2.06 kB │ gzip:   0.94 kB
+dist/assets/useMutation-CZxuoCOv.js          2.32 kB │ gzip:   0.97 kB
+dist/assets/RiskParts-DwQUUoR7.js            2.59 kB │ gzip:   0.97 kB
+dist/assets/DashboardPage-D0vfn653.js        2.78 kB │ gzip:   1.17 kB
+dist/assets/ClassesPage-BJC_Fa8O.js          2.79 kB │ gzip:   1.32 kB
+dist/assets/CsvImportDialog-BnBqVPNn.js      3.01 kB │ gzip:   1.30 kB
+dist/assets/DataTable-BuCZYttU.js            3.21 kB │ gzip:   1.23 kB
+dist/assets/StudentsListPage-BaYnn6QQ.js     3.24 kB │ gzip:   1.48 kB
+dist/assets/RiskListPage-CspD18p9.js         3.56 kB │ gzip:   1.71 kB
+dist/assets/ClassDetailPage-NcPhG7rx.js      4.61 kB │ gzip:   1.81 kB
+dist/assets/StaffPage-C9CF96nE.js            4.67 kB │ gzip:   1.97 kB
+dist/assets/TeachersPage-FPT-LxEn.js         4.86 kB │ gzip:   2.02 kB
+dist/assets/AttendancePage-Byy9aoaQ.js       4.91 kB │ gzip:   1.99 kB
+dist/assets/StudentDetailPage-QjW5IuRG.js    5.06 kB │ gzip:   1.88 kB
+dist/assets/StudentRiskPage-C2ElX3eg.js      5.96 kB │ gzip:   2.21 kB
+dist/assets/StudentForm-Btifld6U.js          5.97 kB │ gzip:   2.22 kB
+dist/assets/RiskTrendCharts-KxmhbVaV.js      6.41 kB │ gzip:   2.66 kB
+dist/assets/GradesPage-DyzZ1qLf.js           7.00 kB │ gzip:   2.69 kB
+dist/assets/useQuery-CkpnmNeg.js             7.97 kB │ gzip:   2.94 kB
+dist/assets/jsx-runtime-Wy9s6hX0.js          8.91 kB │ gzip:   3.39 kB
+dist/assets/DashboardCharts-CynyNJ3T.js     24.03 kB │ gzip:   8.04 kB
+dist/assets/Field-BARBEQsd.js              124.54 kB │ gzip:  37.53 kB
+dist/assets/index-CO5BGTUK.js              352.72 kB │ gzip: 110.89 kB
+dist/assets/chartTheme-BRzSplXI.js         354.34 kB │ gzip: 103.23 kB
+
+✓ built in 644ms
+[exit 0]
+
+$ (cd frontend && npx playwright test --reporter=list)
+
+Running 4 tests using 1 worker
+
+(node:17488) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ok 1 [mobile-375] › e2e\core-flow.spec.ts:8:1 › login → add student → mark attendance → enter grade (5.4s)
+  ok 2 [mobile-375] › e2e\early-warning.spec.ts:4:1 › teacher reviews early-warning scores; the views are audited (7.7s)
+(node:9588) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ok 3 [desktop-1440] › e2e\core-flow.spec.ts:8:1 › login → add student → mark attendance → enter grade (6.0s)
+  ok 4 [desktop-1440] › e2e\early-warning.spec.ts:4:1 › teacher reviews early-warning scores; the views are audited (6.9s)
+
+  4 passed (31.4s)
+[exit 0]
+
+GATE RESULT: PASS
+```
+
+### Migration state on Postgres 16
+
+```text
+$ (cd backend && uv run alembic current && uv run alembic check)   # Postgres 16
+0d96e7cbb08f (head)
+No new upgrade operations detected.
+```
+
+Fixed during this milestone: (1) list sorting tie-breaker now follows the sort direction (audit 'newest first' was unstable for equal timestamps); (2) after a deliberate sign-out the next user was redirected to the previous user's last page — the auth guard now keeps 'return to' state only when a session expired; (3) an e2e race (reading class options before they loaded) was fixed in the test by waiting for the options. The e2e suite was then run three times in a row: 4 passed each time.

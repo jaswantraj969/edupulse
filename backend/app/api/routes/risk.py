@@ -2,7 +2,8 @@
 
 from typing import Annotated, Literal
 
-from fastapi import APIRouter, Query, status
+from fastapi import APIRouter, Query, Request, Response, status
+from fastapi.responses import Response as RawResponse
 from sqlalchemy import and_, select
 from sqlalchemy.orm import Session
 
@@ -10,7 +11,8 @@ from app.api.deps import CurrentUser, DbDep, SettingsDep
 from app.api.routes.classes import roster
 from app.core.config import Settings
 from app.core.errors import ERROR_RESPONSES, AppError
-from app.models import ClassGroup, Enrolment, Student
+from app.models import ClassGroup, Enrolment, Student, User
+from app.models.audit import AuditAction
 from app.schemas.risk import (
     ClassRisk,
     RiskFactor,
@@ -19,9 +21,10 @@ from app.schemas.risk import (
     StudentRisk,
     StudentRiskRow,
 )
-from app.services import risk
+from app.services import audit, risk
 from app.services.access import ensure_class_access, ensure_student_access
 from app.services.crud import current_year, get_or_404
+from app.services.csv_io import csv_response
 
 router = APIRouter(prefix="/risk", tags=["early warning"], responses=ERROR_RESPONSES)
 
@@ -99,19 +102,15 @@ def get_model_info(_user: CurrentUser, settings: SettingsDep) -> RiskModelInfo:
     return model_info(_model(settings), settings)
 
 
-@router.get("/classes/{class_id}", response_model=ClassRisk, summary="Risk list for a class")
-def class_risk(
-    class_id: int,
-    db: DbDep,
-    user: CurrentUser,
-    settings: SettingsDep,
-    sort: Annotated[Literal["probability", "name"], Query()] = "probability",
-    order: Annotated[Literal["asc", "desc"], Query()] = "desc",
-) -> ClassRisk:
-    """Students without Term 1 grades are listed with ``status = insufficient_data``."""
+SortKey = Annotated[Literal["probability", "name"], Query()]
+SortOrder = Annotated[Literal["asc", "desc"], Query()]
+
+
+def _class_rows(
+    db: Session, user: User, model: risk.RiskModel, class_id: int, sort: str, order: str
+) -> tuple[ClassGroup, list[StudentRiskRow]]:
     class_group = get_or_404(db, ClassGroup, class_id, "Class")
     ensure_class_access(db, user, class_id)
-    model = _model(settings)
     students, results = score_class(db, model, class_group)
     rows = []
     for s in students:
@@ -139,6 +138,26 @@ def class_risk(
             reverse=order == "desc",
         )
         rows = scored + [r for r in rows if r.probability is None]
+    return class_group, rows
+
+
+@router.get("/classes/{class_id}", response_model=ClassRisk, summary="Risk list for a class")
+def class_risk(
+    class_id: int,
+    request: Request,
+    db: DbDep,
+    user: CurrentUser,
+    settings: SettingsDep,
+    sort: SortKey = "probability",
+    order: SortOrder = "desc",
+) -> ClassRisk:
+    """Students without Term 1 grades are listed with ``status = insufficient_data``.
+    Every successful call is recorded in the audit log."""
+    model = _model(settings)
+    class_group, rows = _class_rows(db, user, model, class_id, sort, order)
+    audit.record(
+        db, request, user, AuditAction.RISK_VIEW_CLASS, "class", class_id, class_group.name
+    )
     return ClassRisk(
         class_id=class_group.id,
         class_name=class_group.name,
@@ -149,11 +168,60 @@ def class_risk(
 
 
 @router.get(
+    "/classes/{class_id}/export",
+    summary="Export a class risk list as CSV",
+    response_class=RawResponse,
+)
+def export_class_risk(
+    class_id: int, request: Request, db: DbDep, user: CurrentUser, settings: SettingsDep
+) -> Response:
+    """Recorded in the audit log. Each row repeats the decision-support notice."""
+    model = _model(settings)
+    class_group, rows = _class_rows(db, user, model, class_id, "probability", "desc")
+    audit.record(
+        db, request, user, AuditAction.RISK_EXPORT_CLASS, "class", class_id, class_group.name
+    )
+    notice = " ".join(filter(None, [DEMO_NOTICE if settings.demo_mode else None, risk.DISCLAIMER]))
+    header = [
+        "student_no",
+        "last_name",
+        "first_name",
+        "status",
+        "band",
+        "probability",
+        "term1_average_0_20",
+        "absences_projected",
+        "prior_failures",
+        "main_factor",
+        "notice",
+    ]
+    body = [
+        [
+            r.student_no,
+            r.last_name,
+            r.first_name,
+            r.status,
+            r.band or "",
+            "" if r.probability is None else f"{r.probability:.3f}",
+            "" if r.inputs is None or r.inputs.g1 is None else r.inputs.g1,
+            "" if r.inputs is None else r.inputs.absences_projected,
+            "" if r.inputs is None else r.inputs.failures,
+            r.top_factor or "",
+            notice,
+        ]
+        for r in rows
+    ]
+    suffix = "-demo" if settings.demo_mode else ""
+    return csv_response(f"risk-{class_group.name}{suffix}.csv", header, body)
+
+
+@router.get(
     "/students/{student_id}", response_model=StudentRisk, summary="Risk panel for a student"
 )
 def student_risk(
-    student_id: int, db: DbDep, user: CurrentUser, settings: SettingsDep
+    student_id: int, request: Request, db: DbDep, user: CurrentUser, settings: SettingsDep
 ) -> StudentRisk:
+    """Recorded in the audit log."""
     student = get_or_404(db, Student, student_id, "Student")
     ensure_student_access(db, user, student_id)
     model = _model(settings)
@@ -174,6 +242,9 @@ def student_risk(
     if class_group is not None:
         feats = risk.compute_features(db, [student], class_group.academic_year)
         result = risk.score_students(model, feats)[student_id]
+    audit.record(
+        db, request, user, AuditAction.RISK_VIEW_STUDENT, "student", student_id, student.student_no
+    )
     return StudentRisk(
         student_id=student.id,
         student_no=student.student_no,

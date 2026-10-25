@@ -15,7 +15,12 @@ export function useDebounced<T>(value: T, delay = 300): T {
  * List state (page, sort, search and filters) kept in the URL so it survives reloads and can
  * be shared; changing anything but the page resets to page 1.
  */
-export function useListState(defaultSort: string, filterKeys: string[] = [], pageSize = 20) {
+export function useListState(
+  defaultSort: string,
+  filterKeys: string[] = [],
+  pageSize = 20,
+  defaultOrder: 'asc' | 'desc' = 'asc',
+) {
   const [search, setSearch] = useSearchParams()
 
   const params = useMemo<ListParams>(() => {
@@ -23,7 +28,7 @@ export function useListState(defaultSort: string, filterKeys: string[] = [], pag
       page: Number(search.get('page') ?? '1') || 1,
       page_size: pageSize,
       sort: search.get('sort') ?? defaultSort,
-      order: search.get('order') === 'desc' ? 'desc' : 'asc',
+      order: (search.get('order') ?? defaultOrder) === 'desc' ? 'desc' : 'asc',
       q: search.get('q') ?? undefined,
     }
     for (const key of filterKeys) {
@@ -31,7 +36,7 @@ export function useListState(defaultSort: string, filterKeys: string[] = [], pag
       if (value) out[key] = value
     }
     return out
-  }, [search, defaultSort, filterKeys, pageSize])
+  }, [search, defaultSort, filterKeys, pageSize, defaultOrder])
 
   const update = useCallback(
     (changes: Record<string, string | number | undefined>) => {

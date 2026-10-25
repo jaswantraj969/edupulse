@@ -6,6 +6,8 @@ import type { TokenResponse, User } from './types'
 interface AuthState {
   user: User | null
   status: 'loading' | 'authenticated' | 'anonymous'
+  /** Why the last session ended: a deliberate sign-out, or expiry/refusal by the server. */
+  endedBy: 'logout' | 'expired' | null
   login: (email: string, password: string) => Promise<void>
   logout: () => Promise<void>
 }
@@ -16,8 +18,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const queryClient = useQueryClient()
   const [user, setUser] = useState<User | null>(null)
   const [status, setStatus] = useState<AuthState['status']>('loading')
+  const [endedBy, setEndedBy] = useState<AuthState['endedBy']>(null)
 
-  const clear = useCallback(() => {
+  const clear = useCallback((reason: 'logout' | 'expired' = 'expired') => {
+    setEndedBy(reason)
     setAccessToken(null)
     setUser(null)
     setStatus('anonymous')
@@ -27,7 +31,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   // Restore the session from the refresh cookie on first load.
   useEffect(() => {
     let cancelled = false
-    setSessionExpiredHandler(clear)
+    setSessionExpiredHandler(() => clear('expired'))
     refreshSession()
       .then(async (ok) => {
         if (!ok) throw new Error('no session')
@@ -67,6 +71,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setAccessToken(tokens.access_token)
     const me = await api.get<User>('/auth/me')
     setUser(me)
+    setEndedBy(null)
     setStatus('authenticated')
   }, [])
 
@@ -74,11 +79,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     try {
       await api.post('/auth/logout')
     } finally {
-      clear()
+      clear('logout')
     }
   }, [clear])
 
-  const value = useMemo(() => ({ user, status, login, logout }), [user, status, login, logout])
+  const value = useMemo(() => ({ user, status, endedBy, login, logout }), [user, status, endedBy, login, logout])
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>
 }
 

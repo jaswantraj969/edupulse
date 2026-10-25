@@ -25,6 +25,10 @@ export const ATTENDANCE_LABEL: Record<AttendanceStatus, string> = {
   excused: 'Excused',
 }
 
+/** 0.42 -> "42%"; null -> "—". */
+export const percent = (p: number | null | undefined, digits = 0): string =>
+  p === null || p === undefined ? '—' : `${(p * 100).toFixed(digits)}%`
+
 export function capitalize(text: string): string {
   return text.charAt(0).toUpperCase() + text.slice(1)
 }

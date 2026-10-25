@@ -116,7 +116,11 @@ export default function StudentDetailPage() {
         title={fullName(s)}
         description={`${s.student_no}${s.class_name ? ` · Class ${s.class_name}` : ''}`}
         actions={
-          user.role === 'admin' && (
+          <>
+            <Link to={`/early-warning/students/${id}`} className={buttonClass('secondary')}>
+              Early warning
+            </Link>
+            {user.role === 'admin' && (
             <>
               <Link to={`/students/${id}/edit`} className={buttonClass('secondary')}>
                 Edit
@@ -125,7 +129,8 @@ export default function StudentDetailPage() {
                 Delete
               </Button>
             </>
-          )
+            )}
+          </>
         }
       />
       <div className="flex flex-col gap-6">

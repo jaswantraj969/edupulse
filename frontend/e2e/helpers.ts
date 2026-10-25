@@ -27,3 +27,14 @@ export async function navigate(page: Page, label: string): Promise<void> {
   }
   await expect(page.getByRole('heading', { level: 1, name: label })).toBeVisible()
 }
+
+export async function signOut(page: Page): Promise<void> {
+  const sidebarButton = page.getByRole('complementary').getByRole('button', { name: 'Sign out' })
+  if (await sidebarButton.isVisible()) {
+    await sidebarButton.click()
+  } else {
+    await page.getByRole('button', { name: 'More' }).click()
+    await page.getByRole('dialog', { name: 'More' }).getByRole('button', { name: 'Sign out' }).click()
+  }
+  await expect(page.getByRole('heading', { name: 'Sign in to your school account' })).toBeVisible()
+}

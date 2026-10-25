@@ -1,15 +1,8 @@
 // Loaded lazily: Recharts is the largest dependency and only the dashboard needs it.
 import { Bar, BarChart, CartesianGrid, Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts'
+import { INK, SERIES, tooltipStyle } from '@/lib/chartTheme'
 import { useTheme } from '@/lib/theme'
 import type { DashboardSummary } from '@/lib/types'
-
-// Series colours validated with the dataviz palette checker against each surface
-// (white card in light mode, slate-900 card in dark mode).
-const SERIES = { light: '#4f46e5', dark: '#6366f1' }
-const INK = {
-  light: { grid: '#e2e8f0', axis: '#475569', tooltipBg: '#ffffff', tooltipBorder: '#cbd5e1', text: '#0f172a' },
-  dark: { grid: '#1e293b', axis: '#94a3b8', tooltipBg: '#0f172a', tooltipBorder: '#334155', text: '#f1f5f9' },
-}
 
 const shortDate = (iso: string) =>
   new Date(`${iso}T00:00:00`).toLocaleDateString(undefined, { day: 'numeric', month: 'short' })
@@ -61,7 +54,7 @@ export function AttendanceTrendChart({ data }: { data: DashboardSummary['attenda
             <Tooltip
               formatter={(value) => [percent(Number(value)), 'Attendance']}
               labelFormatter={(label) => `Week of ${shortDate(String(label))}`}
-              contentStyle={{ background: ink.tooltipBg, border: `1px solid ${ink.tooltipBorder}`, borderRadius: 8, color: ink.text }}
+              contentStyle={tooltipStyle(resolved)}
               cursor={{ stroke: ink.axis, strokeDasharray: '3 3' }}
             />
             <Line type="monotone" dataKey="attendance_rate" stroke={SERIES[resolved]} strokeWidth={2} dot={false} activeDot={{ r: 5, strokeWidth: 2, stroke: ink.tooltipBg }} />
@@ -95,7 +88,7 @@ export function GradeDistributionChart({ data }: { data: DashboardSummary['grade
             <Tooltip
               formatter={(value) => [value, 'Students']}
               labelFormatter={(label) => `Average ${String(label)}%`}
-              contentStyle={{ background: ink.tooltipBg, border: `1px solid ${ink.tooltipBorder}`, borderRadius: 8, color: ink.text }}
+              contentStyle={tooltipStyle(resolved)}
               cursor={{ fill: ink.grid, opacity: 0.6 }}
             />
             <Bar dataKey="students" fill={SERIES[resolved]} radius={[4, 4, 0, 0]} />

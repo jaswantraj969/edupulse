@@ -6,6 +6,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from app.api.routes import (
     assessments,
     attendance,
+    audit,
     auth,
     catalog,
     classes,
@@ -58,6 +59,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         assessments.router,
         catalog.router,
         risk.router,
+        audit.router,
     )
     for router in routers:
         app.include_router(router, prefix=API_PREFIX)

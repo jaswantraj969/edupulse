@@ -17,12 +17,20 @@ const ClassesPage = lazy(() => import('@/pages/classes/ClassesPage'))
 const ClassDetailPage = lazy(() => import('@/pages/classes/ClassDetailPage'))
 const AttendancePage = lazy(() => import('@/pages/records/AttendancePage'))
 const GradesPage = lazy(() => import('@/pages/records/GradesPage'))
+const RiskListPage = lazy(() => import('@/pages/risk/RiskListPage'))
+const StudentRiskPage = lazy(() => import('@/pages/risk/StudentRiskPage'))
+const AuditLogPage = lazy(() => import('@/pages/risk/AuditLogPage'))
 
 function RequireAuth() {
-  const { status } = useAuth()
+  const { status, endedBy } = useAuth()
   const location = useLocation()
   if (status === 'loading') return <LoadingState label="Signing in…" />
-  if (status === 'anonymous') return <Navigate to="/login" replace state={{ from: location.pathname + location.search }} />
+  if (status === 'anonymous') {
+    // Return to the page after re-login only when the session expired; after a deliberate
+    // sign-out the next person must not land on the previous user's page.
+    const from = endedBy === 'logout' ? undefined : location.pathname + location.search
+    return <Navigate to="/login" replace state={from ? { from } : null} />
+  }
   return <Outlet />
 }
 
@@ -71,6 +79,9 @@ const router = createBrowserRouter([
           { path: 'classes/:id', element: <Page><ClassDetailPage /></Page> },
           { path: 'attendance', element: <Page><AttendancePage /></Page> },
           { path: 'grades', element: <Page><GradesPage /></Page> },
+          { path: 'early-warning', element: <Page><RiskListPage /></Page> },
+          { path: 'early-warning/students/:id', element: <Page><StudentRiskPage /></Page> },
+          { path: 'audit', element: <Page><AdminOnly><AuditLogPage /></AdminOnly></Page> },
           { path: '*', element: <NotFound /> },
         ],
       },

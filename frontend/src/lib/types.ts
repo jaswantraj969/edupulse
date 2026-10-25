@@ -225,3 +225,89 @@ export interface ImportResult {
   created: number
   errors: RowError[]
 }
+
+// --- early warning ---------------------------------------------------------------------------
+
+export type RiskBand = 'high' | 'medium' | 'low'
+
+export interface CiValue {
+  estimate: number
+  ci_low: number
+  ci_high: number
+}
+
+export interface RiskModelInfo {
+  version: string
+  model_type: string
+  trained_at: string
+  prediction_moment: string
+  thresholds: { high: number; medium: number }
+  evaluation: {
+    dataset?: string
+    test_rows?: number
+    average_precision?: CiValue
+    roc_auc?: CiValue
+    precision?: CiValue
+    recall?: CiValue
+  }
+  training_data: string
+  disclaimer: string
+  data_notice: string | null
+}
+
+export interface RiskInputs {
+  g1: number | null
+  absences_term1: number
+  absences_projected: number
+  failures: number
+  assessments_term1: number
+}
+
+export interface RiskFactor {
+  feature: string
+  label: string
+  value: number
+  contribution: number
+  direction: 'raises' | 'lowers'
+  text: string
+}
+
+export interface StudentRiskRow {
+  student_id: number
+  student_no: string
+  first_name: string
+  last_name: string
+  status: 'scored' | 'insufficient_data'
+  probability: number | null
+  band: RiskBand | null
+  top_factor: string | null
+  inputs: RiskInputs | null
+}
+
+export interface ClassRisk {
+  class_id: number
+  class_name: string
+  as_of: string
+  model: RiskModelInfo
+  students: StudentRiskRow[]
+}
+
+export interface StudentRisk extends Omit<StudentRiskRow, 'top_factor'> {
+  class_id: number | null
+  class_name: string | null
+  as_of: string | null
+  factors: RiskFactor[]
+  model: RiskModelInfo
+}
+
+export interface AuditLogEntry {
+  id: number
+  created_at: string
+  user_id: number | null
+  user_email: string
+  action: 'risk.view_class' | 'risk.view_student' | 'risk.export_class'
+  target_type: string
+  target_id: number
+  detail: string | null
+  ip_address: string | null
+}

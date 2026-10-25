@@ -14,6 +14,7 @@ const PATHS = {
   logout: 'M15 4h4v16h-4M10 8l-4 4 4 4M6 12h10',
   close: 'M6 6l12 12M18 6L6 18',
   risk: 'M12 3l9 16H3zM12 10v4M12 17h.01',
+  audit: 'M6 3h9l3 3v15H6zM9 9h6M9 13h6M9 17h3',
 } as const
 
 export type IconName = keyof typeof PATHS
