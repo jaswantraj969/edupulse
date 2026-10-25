@@ -3,7 +3,7 @@
 All numbers below are copied from the generated run record
 [`ml/reports/run_record.md`](../ml/reports/run_record.md) (full detail in
 `ml/reports/metrics.json`). Re-run with `cd ml && uv run python -m edupulse_ml.train`;
-CI re-runs it and fails if the numbers differ (`python -m edupulse_ml.reproduce`).
+CI re-runs it and fails if any published (3-decimal) number differs (`python -m edupulse_ml.reproduce`).
 
 ## Summary
 

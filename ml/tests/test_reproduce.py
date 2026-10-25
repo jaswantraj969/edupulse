@@ -23,7 +23,8 @@ def test_differences_are_reported() -> None:
     fresh["chosen_model"] = "gradient_boosting"
     fresh["thresholds"]["high"] = 0.31
     fresh["test"] = {"logistic_regression": {"average_precision": {"estimate": 0.79}}}
-    fresh["cv"]["logistic_regression"]["average_precision"]["mean"] = 0.8 + 1e-9  # within tolerance
+    # Cross-platform floating-point noise is tolerated.
+    fresh["cv"]["logistic_regression"]["average_precision"]["mean"] = 0.8 + 2e-5
     problems = compare(_run(), fresh)
     assert any("chosen model" in p for p in problems)
     assert any("thresholds.high" in p for p in problems)

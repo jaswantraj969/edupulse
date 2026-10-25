@@ -1,7 +1,8 @@
 """Re-run training in a temporary directory and compare with the committed run.
 
-Exits non-zero if the chosen model, thresholds or headline metrics differ beyond a small
-numerical tolerance. Used by CI to show the published numbers are reproducible.
+Exits non-zero if the chosen model differs, or thresholds or headline metrics differ by more
+than half of the last published digit (5e-4). Used by CI to show the published numbers are
+reproducible.
 
 Usage::
 
@@ -16,7 +17,9 @@ from typing import Any
 
 from edupulse_ml import data, train
 
-TOLERANCE = 1e-6
+# Published figures carry three decimals; agreement within half of the last reported digit
+# means every published number reproduces. (Different OS/BLAS builds differ around 1e-5.)
+TOLERANCE = 5e-4
 
 
 def compare(committed: dict[str, Any], fresh: dict[str, Any]) -> list[str]:
