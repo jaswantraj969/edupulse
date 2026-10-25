@@ -12,15 +12,8 @@ class TokenResponse(BaseModel):
     access_token: str
     token_type: str = "bearer"  # noqa: S105  (OAuth2 token type, not a secret)
     expires_in: int = Field(description="Access-token lifetime in seconds")
-    refresh_token: str = Field(
-        description="Opaque refresh token. Also set as an httpOnly cookie for browser clients."
-    )
-
-
-class RefreshRequest(BaseModel):
-    refresh_token: str | None = Field(
-        default=None, description="Omit to use the httpOnly refresh cookie instead."
-    )
+    # The refresh token is deliberately not part of this body: it is only set as an httpOnly,
+    # Secure, SameSite=Strict cookie (see app/api/routes/auth.py).
 
 
 class UserRead(BaseModel):

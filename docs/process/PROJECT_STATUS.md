@@ -18,7 +18,7 @@ its output recorded in `REVIEW_PACKET.md`; it is not a claim of external verific
 
 ## Resume point
 
-All milestones done. v1.0.0 released on the private repository; awaiting supervisor review. Do not make the repository public (the owner publishes after review).
+Supervisor review T-R1 in progress (ML validity evidence, security fixes, review bundle). Repository stays private.
 
 ## Decisions
 
@@ -94,6 +94,13 @@ All milestones done. v1.0.0 released on the private repository; awaiting supervi
 | D68 | M8 | Demo credentials are documented as "the `EDUPULSE_DEMO_PASSWORD` you set"; no password is committed. | No shared default secret. |
 | D69 | M9 | Privacy scanner committed with generic rules; machine-specific terms (username, personal e-mail, folder, secret values) passed at runtime and never printed. | The scan can be repeated and reported without leaking what it looks for. |
 | D70 | M9 | Repository created private; `v1.0.0` tagged on the commit containing the final report after CI is green. | Release matches the reviewed state; owner decides on publication. |
+| D71 | T-R1 | Every training run records a split audit (identity groups spanning both UCI files, crossings of the holdout and of each CV fold) and fails if any student crosses. | Evidence of disjointness travels with the results (0 crossings; 366 groups span both files). |
+| D72 | T-R1 | `HoldoutGuard`: model choice and thresholds are frozen before the test indices can be read; each model can be scored on the holdout once; the access log is published in the run record. | "Test scored once" is enforced by code and tests, not only by convention. |
+| D73 | T-R1 | A pre-term variant (absences + failures, no period grades) is evaluated with the same protocol and its own OOF threshold, and reported but not served. | Shows what the first-period grade contributes (test AP 0.489 vs 0.817). |
+| D74 | T-R1 | Test-set permutation importance (50 repeats, AP) is reported as descriptive only; no decision depends on it. | Answers "how much of the model the app can compute" (100 %). |
+| D75 | T-R1 | Refresh token only in an httpOnly, Secure, SameSite=Strict cookie; removed from login/refresh JSON; `/refresh` and `/logout` read only the cookie; `Secure` on by default; HSTS is a separate `EDUPULSE_HSTS` flag. | Page JavaScript can never read the refresh token; HSTS should not be tied to cookie flags. |
+| D76 | T-R1 | API refuses to start if the JWT secret is missing, < 32 bytes or a placeholder; the seed refuses an empty/default demo password (no auto-generated password any more). | Fail closed on unsafe configuration. |
+| D77 | T-R1 | B4: dashboard chart loading measured in three variants (3 Lighthouse runs each, Docker build): eager import 79/78/79, lazy chunk 80/82/76, lazy + render near viewport 87/84/84. None reached 90, so per the review rule the dashboard uses the simplest variant (eager import inside the route-split page). | Keep a change only if it meets the target; the +5 median from deferral is recorded should the owner want it back. |
 
 ## Deviations and limitations
 
@@ -101,5 +108,6 @@ All milestones done. v1.0.0 released on the private repository; awaiting supervi
 - Academic years and terms are read-only through the API (created by the seed/migrations); a year-rollover workflow is out of scope. (M3)
 - The model is trained on 2005–06 Portuguese data and must be re-validated locally before real use; the app's averaged multi-subject G1 and projected absences are an input shift relative to training (see docs/model_card.md). (M5)
 - On the test set, gradient boosting scored slightly higher than the selected logistic regression at the threshold; the pre-registered selection was kept (CIs overlap). (M5)
-- **Lighthouse dashboard performance 82 (target ≥ 90)** on the simulated mobile profile; other audited pages 92–96, accessibility 100 everywhere. Cause: Recharts render cost for the above-the-fold chart; evidence and mitigations in REVIEW_PACKET (M7). Options for a later version: a lighter chart component for the dashboard only, or server-rendered sparkline images. (M7)
+- **Lighthouse dashboard performance 76–79 (target ≥ 90)** on the simulated mobile profile after T-R1 (B4 attempt best median 84, not kept); other audited pages 96–97, accessibility 100 everywhere. Cause: Recharts render cost for the above-the-fold chart (profiling in REVIEW_PACKET M7). (M7, T-R1)
 - ML reproduction check tolerance is 5e-4 (half of the last published digit): Linux and Windows differ around 1e-5 in CV means. (M9)
+- Correction (T-R1): earlier docs said "382 students appear in both files"; 382 is the row count of the dataset documentation's merge. EduPulse's grouping has 366 identity groups spanning both files (370 maths rows matched). Splits were grouped from the start, so no result changed.

@@ -9,6 +9,20 @@ from pydantic_settings import BaseSettings, NoDecode, SettingsConfigDict
 
 BACKEND_DIR = Path(__file__).resolve().parents[2]
 
+MIN_SECRET_BYTES = 32
+# The .env.example value (empty) plus common placeholders that must never sign real tokens.
+PLACEHOLDER_SECRETS = {
+    "",
+    "change-me",
+    "changeme",
+    "change-me-local-only",
+    "secret",
+    "your-secret",
+    "your-secret-here",
+    "jwt-secret",
+    "please-change-me",
+}
+
 
 class Settings(BaseSettings):
     model_config = SettingsConfigDict(
@@ -32,8 +46,11 @@ class Settings(BaseSettings):
     login_rate_limit_attempts: int = Field(default=5, ge=1)
     login_rate_limit_window_seconds: int = Field(default=60, ge=1)
 
-    # Cookie flags for the refresh token. ``secure`` should be true behind HTTPS.
-    cookie_secure: bool = False
+    # Refresh-token cookie is Secure by default. Browsers accept Secure cookies on http://localhost
+    # and http://127.0.0.1, so local Docker use works; set false only for plain-HTTP LAN testing.
+    cookie_secure: bool = True
+    # Strict-Transport-Security header; enable when the site is served over HTTPS.
+    hsts: bool = False
 
     model_dir: Path = BACKEND_DIR / "model"
     # True while the database holds synthetic demo data: risk scores are then labelled as demo.
@@ -51,11 +68,15 @@ class Settings(BaseSettings):
     @field_validator("jwt_secret")
     @classmethod
     def _secret_strength(cls, value: SecretStr) -> SecretStr:
-        if value.get_secret_value() and len(value.get_secret_value()) < 32:
-            raise ValueError("EDUPULSE_JWT_SECRET must be at least 32 characters")
+        secret = value.get_secret_value()
+        if secret and secret.strip().lower() in PLACEHOLDER_SECRETS:
+            raise ValueError("EDUPULSE_JWT_SECRET is a placeholder value; generate a random one")
+        if secret and len(secret.encode()) < MIN_SECRET_BYTES:
+            raise ValueError(f"EDUPULSE_JWT_SECRET must be at least {MIN_SECRET_BYTES} bytes")
         return value
 
     def require_jwt_secret(self) -> str:
+        """The signing secret, or an error if it is missing (startup refuses to continue)."""
         secret = self.jwt_secret.get_secret_value()
         if not secret:
             raise RuntimeError("EDUPULSE_JWT_SECRET is not set")

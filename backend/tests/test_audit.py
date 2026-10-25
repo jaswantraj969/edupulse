@@ -104,3 +104,17 @@ def test_audit_listing_is_admin_only_and_filterable(
     oldest = client.get(AUDIT, params={"sort": "created_at", "order": "asc"}, headers=admin).json()
     assert oldest["items"][0]["action"] == "risk.view_class"
     assert client.get(AUDIT, params={"action": "deleted"}, headers=admin).status_code == 422
+
+
+def test_risk_export_neutralises_formulas(client: TestClient, db: Session, school: School) -> None:
+    _grade_student_b(db, school)
+    school.student_b.last_name = '=HYPERLINK("http://evil.example")'
+    school.student_b.first_name = "@cmd"
+    db.merge(school.student_b)
+    db.commit()
+    response = client.get(
+        f"/api/v1/risk/classes/{school.class_b.id}/export", headers=school.headers(school.admin)
+    )
+    row = next(csv.DictReader(io.StringIO(response.text)))
+    assert row["last_name"].startswith("'=")
+    assert row["first_name"] == "'@cmd"

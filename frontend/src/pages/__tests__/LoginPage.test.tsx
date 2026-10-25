@@ -56,7 +56,7 @@ describe('LoginPage', () => {
       {
         'POST /api/v1/auth/login': () => {
           loggedIn = true
-          return { body: { access_token: 't', token_type: 'bearer', expires_in: 900, refresh_token: 'r' } }
+          return { body: { access_token: 't', token_type: 'bearer', expires_in: 900 } }
         },
         'GET /api/v1/auth/me': () => (loggedIn ? { body: ADMIN } : { status: 401, body: null }),
       },

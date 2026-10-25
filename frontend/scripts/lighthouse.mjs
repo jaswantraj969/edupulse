@@ -35,7 +35,10 @@ async function refreshCookie() {
     body: new URLSearchParams({ username: 'admin@edupulse.example', password: PASSWORD }),
   })
   if (!response.ok) throw new Error(`login failed: ${response.status}`)
-  const { refresh_token: token, access_token: access } = await response.json()
+  // The refresh token only arrives as a Set-Cookie header (never in the JSON body).
+  const token = /edupulse_refresh=([^;]+)/.exec(response.headers.get('set-cookie') ?? '')?.[1]
+  if (!token) throw new Error('login response had no refresh cookie')
+  const { access_token: access } = await response.json()
   return { cookie: `edupulse_refresh=${token}`, access }
 }
 
@@ -94,7 +97,10 @@ try {
   ).json()
   const studentId = students.items[0].id
 
-  results.push(await audit('login', '/login', false))
+  // LH_PAGES=dashboard,students limits the run (e.g. for repeated before/after measurements).
+  const only = process.env.LH_PAGES?.split(',')
+  const wanted = (name) => !only || only.includes(name)
+  if (wanted('login')) results.push(await audit('login', '/login', false))
   for (const [name, path] of [
     ['dashboard', '/'],
     ['students', '/students'],
@@ -102,7 +108,7 @@ try {
     ['early-warning', '/early-warning?class_id=1'],
     ['student-risk', `/early-warning/students/${studentId}`],
   ]) {
-    results.push(await audit(name, path, true))
+    if (wanted(name)) results.push(await audit(name, path, true))
   }
 } finally {
   rmSync(work, { recursive: true, force: true })

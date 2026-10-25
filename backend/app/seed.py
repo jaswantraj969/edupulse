@@ -9,8 +9,8 @@ Usage::
     python -m app.seed            # refuses to run if the database already has data
     python -m app.seed --reset    # deletes existing data first
 
-The demo password for every account is read from ``EDUPULSE_DEMO_PASSWORD`` (a random one is
-generated and printed if it is unset).
+The demo password for every account is read from ``EDUPULSE_DEMO_PASSWORD``; the script refuses
+to run if it is empty, a known default, or does not meet the password policy.
 """
 
 from __future__ import annotations
@@ -19,7 +19,6 @@ import argparse
 import math
 import os
 import random
-import secrets
 import unicodedata
 from collections.abc import Iterator
 from dataclasses import dataclass, field
@@ -410,8 +409,23 @@ def seed(session: Session, config: SeedConfig) -> SeedSummary:
     return SeedSummary(counts=counts, password=config.password)
 
 
+# Values that appear in examples or are commonly guessed; never accepted as the demo password.
+DEFAULT_PASSWORDS = {
+    "change-me",
+    "change-me-local-only",
+    "password",
+    "password123",
+    "demo",
+    "admin",
+}
+
+
 def resolve_password(value: str | None) -> str:
-    password = value or f"Demo-{secrets.token_urlsafe(9)}9a"
+    password = (value or "").strip()
+    if not password:
+        raise SystemExit("Set EDUPULSE_DEMO_PASSWORD (see .env.example); refusing to seed.")
+    if password.lower() in DEFAULT_PASSWORDS:
+        raise SystemExit("EDUPULSE_DEMO_PASSWORD is a default value; choose your own.")
     problems = password_policy_errors(password)
     if problems:
         raise SystemExit("EDUPULSE_DEMO_PASSWORD " + "; ".join(problems))
@@ -444,8 +458,6 @@ def main(argv: list[str] | None = None) -> None:
     for table, count in summary.counts.items():
         print(f"  {table:<22}{count:>8}")
     print(f"Demo logins: {ADMIN_EMAIL} (admin), any teacher e-mail @ {DEMO_DOMAIN} (teacher)")
-    if not env_password:
-        print(f"Generated demo password (shown once): {summary.password}")
 
 
 if __name__ == "__main__":

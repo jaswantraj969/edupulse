@@ -30,6 +30,6 @@ command above.
 
 Secondary-school students from two Portuguese public schools (Gabriel Pereira and Mousinho da
 Silveira), school year 2005–2006, collected from school reports and questionnaires. One file per
-course (Mathematics, Portuguese language). 382 students appear in both files; EduPulse keeps a
-student's two rows in the same train/test split. Grades are on a 0–20 scale; G1 and G2 are the
+course (Mathematics, Portuguese language). Students can appear in both files. The dataset documentation's merge on 13 identifying attributes yields 382 matched rows; in EduPulse's grouping 370 maths rows have a Portuguese match, forming 366 identity groups that span both files (9 groups with more than two rows are attribute collisions, kept together).
+EduPulse keeps all of a student's rows on the same side of every split. Grades are on a 0–20 scale; G1 and G2 are the
 first and second period grades and G3 the final grade.

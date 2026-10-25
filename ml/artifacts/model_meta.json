@@ -9,19 +9,25 @@
       "name": "g1",
       "source": "G1",
       "description": "First-period grade (0-20)",
-      "app_mapping": "Weighted mean percentage of the student's Term 1 assessments across subjects / 5"
+      "app_mapping": "Weighted mean percentage of the student's Term 1 assessments across subjects / 5",
+      "app_computable": true,
+      "justification": "School record; the strongest signal and what teachers already act on."
     },
     {
       "name": "absences",
       "source": "absences",
       "description": "Number of school absences (0-93)",
-      "app_mapping": "Term 1 'absent' days extrapolated to the full year (x school days / Term 1 days)"
+      "app_mapping": "Term 1 'absent' days extrapolated to the full year (x school days / Term 1 days)",
+      "app_computable": true,
+      "justification": "School attendance record; something the school can act on."
     },
     {
       "name": "failures",
       "source": "failures",
       "description": "Number of past class failures (0-3)",
-      "app_mapping": "students.prior_failures"
+      "app_mapping": "students.prior_failures",
+      "app_computable": true,
+      "justification": "School record of past academic outcomes (years repeated)."
     }
   ],
   "pass_mark": 10,
@@ -111,6 +117,6 @@
       "n": 2000
     }
   },
-  "prediction_moment": "end of the first grading period (G1 known; G2, G3 unknown)",
+  "prediction_moment": "after first-period grades (end of Term 1): G1 known; G2 and G3 unknown",
   "intended_use": "Decision support for school staff; never an automatic sanction."
 }

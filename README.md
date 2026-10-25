@@ -104,13 +104,14 @@ Numbers from [`ml/reports/run_record.md`](ml/reports/run_record.md) (reproduced 
 | | |
 |---|---|
 | Data | UCI Student Performance (Cortez & Silva, 2008; CC BY 4.0): 1,044 course records, 662 students, 22.0 % fail |
-| Prediction moment | End of Term 1 — first-period grade known; later grades never used |
+| Prediction moment | After first-period grades (end of Term 1); later grades never used |
 | Inputs | Term 1 average, absences, previous-year failures (no sex, age or family/socio-economic data) |
 | Model | Logistic regression, chosen over gradient boosting by a pre-declared rule |
 | Cross-validated average precision | 0.803 ± 0.057 (dummy baseline 0.220 ± 0.002) |
 | Held-out test (scored once) | AP **0.817** [95 % CI 0.705–0.901], ROC AUC 0.936 [0.900–0.966] |
 | At the "high risk" threshold (0.315) | recall 0.804 [0.674–0.915], precision 0.627 [0.500–0.740] |
-| Fairness check (sex, not an input) | recall F 0.833 vs M 0.750 on test (gap +0.083; intervals overlap) |
+| Fairness check (sex, not an input) | recall F 0.833 [0.682, 0.952] (n=128, 30 fails) vs M 0.750 [0.500, 0.945] (n=81, 16 fails): inconclusive, not evidence of fairness |
+| Without period grades (pre-term variant, not served) | test AP 0.489 [0.361, 0.646] |
 
 Read the [model card](docs/model_card.md) before relying on any score, and the
 [case study](docs/case_study.md) for how it was built.
@@ -144,9 +145,10 @@ PostgreSQL 16, the ML reproduction check, Playwright with axe, and dependency au
   differently (multi-subject average, projected absences). Re-validate locally before real use.
 - Only one academic year is active at a time; there is no year-rollover workflow.
 - The login rate limiter is per process; multiple API replicas need a shared store.
-- No HTTPS termination in the compose setup; enable `EDUPULSE_COOKIE_SECURE` and HSTS behind TLS.
-- Lighthouse (mobile) performance is 92–96 on most screens but 82 on the dashboard because of
-  chart rendering cost (see `docs/process/PROJECT_STATUS.md`).
+- No HTTPS termination in the compose setup; enable `EDUPULSE_HSTS` behind TLS.
+- Lighthouse (mobile) performance is 96–97 on most screens but 76–79 on the dashboard because of
+  chart rendering cost; lazy loading and viewport deferral were measured (best median 84) and,
+  not reaching 90, were not kept (see `docs/process/PROJECT_STATUS.md`).
 - Not included: parent/student portals, messaging, payments, multi-school tenancy.
 
 ## Licence and attribution

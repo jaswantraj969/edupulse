@@ -26,7 +26,7 @@ type Handler = (init: RequestInit | undefined, url: URL) => { status?: number; b
 export function mockApi(routes: Record<string, Handler | unknown>, user: User | null = ADMIN) {
   const calls: { method: string; path: string; body: unknown }[] = []
   const all: Record<string, Handler | unknown> = {
-    'POST /api/v1/auth/refresh': user ? { access_token: 'token', token_type: 'bearer', expires_in: 900, refresh_token: 'r' } : { __status: 401 },
+    'POST /api/v1/auth/refresh': user ? { access_token: 'token', token_type: 'bearer', expires_in: 900 } : { __status: 401 },
     'GET /api/v1/auth/me': user,
     ...routes,
   }

@@ -55,7 +55,7 @@ class StudentRiskRow(BaseModel):
 class ClassRisk(BaseModel):
     class_id: int
     class_name: str
-    as_of: date = Field(description="Prediction moment: end of Term 1")
+    as_of: date = Field(description="Prediction moment: after first-period (Term 1) grades")
     model: RiskModelInfo
     students: list[StudentRiskRow]
 

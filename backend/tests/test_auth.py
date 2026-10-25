@@ -20,23 +20,34 @@ LOGOUT = "/api/v1/auth/logout"
 ME = "/api/v1/auth/me"
 
 
-def login(client: TestClient, email: str, password: str = PASSWORD) -> dict[str, object]:
+def login(client: TestClient, email: str, password: str = PASSWORD) -> str:
+    """Log in; returns the refresh token from the cookie jar (it is never in the body)."""
     response = client.post(LOGIN, data={"username": email, "password": password})
     assert response.status_code == 200, response.text
-    body: dict[str, object] = response.json()
-    return body
+    assert "refresh_token" not in response.json()
+    token = client.cookies.get(REFRESH_COOKIE)
+    assert token
+    return token
+
+
+def refresh_with(client: TestClient, token: str) -> int:
+    """POST /refresh presenting exactly this refresh cookie; returns the status code."""
+    client.cookies.clear()
+    return client.post(REFRESH, headers={"Cookie": f"{REFRESH_COOKIE}={token}"}).status_code
 
 
 def test_login_returns_tokens_and_secure_cookie(client: TestClient, school: School) -> None:
     response = client.post(LOGIN, data={"username": school.admin.email, "password": PASSWORD})
     assert response.status_code == 200
     body = response.json()
+    assert set(body) == {"access_token", "token_type", "expires_in"}  # no refresh token in JSON
     assert body["token_type"] == "bearer"
     assert body["expires_in"] == 15 * 60
     assert response.headers["cache-control"] == "no-store"
     cookie = response.headers["set-cookie"]
     assert REFRESH_COOKIE in cookie
     assert "HttpOnly" in cookie
+    assert "Secure" in cookie
     assert "SameSite=strict" in cookie
     assert "Path=/api/v1/auth" in cookie
 
@@ -97,16 +108,17 @@ def test_successful_login_resets_account_counter(client: TestClient, school: Sch
 
 def test_refresh_rotates_and_detects_reuse(client: TestClient, school: School) -> None:
     first = login(client, school.admin.email)
-    rotated = client.post(REFRESH, json={"refresh_token": first["refresh_token"]})
+    rotated = client.post(REFRESH)
     assert rotated.status_code == 200
-    second = rotated.json()
-    assert second["refresh_token"] != first["refresh_token"]
+    assert set(rotated.json()) == {"access_token", "token_type", "expires_in"}
+    assert "Secure" in rotated.headers["set-cookie"]
+    second = client.cookies.get(REFRESH_COOKIE)
+    assert second
+    assert second != first
 
     # Re-using the old (rotated) token is treated as theft: all sessions are revoked.
-    reuse = client.post(REFRESH, json={"refresh_token": first["refresh_token"]})
-    assert reuse.status_code == 401
-    after = client.post(REFRESH, json={"refresh_token": second["refresh_token"]})
-    assert after.status_code == 401
+    assert refresh_with(client, first) == 401
+    assert refresh_with(client, second) == 401  # the whole session family was revoked
 
 
 def test_refresh_with_cookie(client: TestClient, school: School) -> None:
@@ -116,26 +128,33 @@ def test_refresh_with_cookie(client: TestClient, school: School) -> None:
     assert response.json()["access_token"]
 
 
-def test_refresh_without_token_or_with_unknown_token(client: TestClient) -> None:
+def test_refresh_without_cookie_or_with_unknown_token(client: TestClient) -> None:
     assert client.post(REFRESH).status_code == 401
-    assert client.post(REFRESH, json={"refresh_token": "nope"}).status_code == 401
+    client.cookies.clear()
+    rejected = client.post(REFRESH, headers={"Cookie": f"{REFRESH_COOKIE}=nope"})
+    assert rejected.status_code == 401
+    assert "Max-Age=0" in rejected.headers["set-cookie"]  # cookie cleared
+
+
+def test_refresh_token_in_body_is_not_accepted(client: TestClient, school: School) -> None:
+    token = login(client, school.admin.email)
+    client.cookies.clear()
+    assert client.post(REFRESH, json={"refresh_token": token}).status_code == 401
 
 
 def test_expired_refresh_token_rejected(client: TestClient, school: School, db: Session) -> None:
-    tokens = login(client, school.admin.email)
+    login(client, school.admin.email)
     db.execute(update(RefreshToken).values(expires_at=utcnow() - timedelta(seconds=1)))
     db.commit()
-    client.cookies.clear()
-    assert client.post(REFRESH, json={"refresh_token": tokens["refresh_token"]}).status_code == 401
+    assert client.post(REFRESH).status_code == 401
 
 
 def test_logout_revokes_refresh_token(client: TestClient, school: School, db: Session) -> None:
-    tokens = login(client, school.admin.email)
-    response = client.post(LOGOUT, json={"refresh_token": tokens["refresh_token"]})
+    token = login(client, school.admin.email)
+    response = client.post(LOGOUT)
     assert response.status_code == 204
     assert db.scalars(select(RefreshToken.revoked_at)).one() is not None
-    client.cookies.clear()
-    assert client.post(REFRESH, json={"refresh_token": tokens["refresh_token"]}).status_code == 401
+    assert refresh_with(client, token) == 401
 
 
 def test_logout_via_cookie_and_without_token(client: TestClient, school: School) -> None:

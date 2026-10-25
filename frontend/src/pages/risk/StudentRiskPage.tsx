@@ -47,7 +47,7 @@ export default function StudentRiskPage() {
       <BackLink to={r.class_id ? `/early-warning?class_id=${r.class_id}` : '/early-warning'}>Early warning</BackLink>
       <PageHeader
         title={fullName(r)}
-        description={`${r.student_no}${r.class_name ? ` · Class ${r.class_name}` : ''}${r.as_of ? ` · estimated as of ${formatDate(r.as_of)}` : ''}`}
+        description={`${r.student_no}${r.class_name ? ` · Class ${r.class_name}` : ''}${r.as_of ? ` · estimated after first-period grades (${formatDate(r.as_of)})` : ''}`}
         actions={
           <Link to={`/students/${r.student_id}`} className="text-sm font-medium text-indigo-700 hover:underline dark:text-indigo-300">
             Full student record

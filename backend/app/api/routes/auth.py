@@ -1,8 +1,12 @@
-"""Authentication endpoints (OAuth2 password flow + refresh-token rotation)."""
+"""Authentication endpoints (OAuth2 password flow + refresh-token rotation).
+
+The refresh token is only ever sent as an httpOnly, Secure, SameSite=Strict cookie scoped to
+``/api/v1/auth``; it never appears in a response body, so page JavaScript cannot read it.
+"""
 
 from typing import Annotated
 
-from fastapi import APIRouter, Body, Cookie, Depends, Request, Response, status
+from fastapi import APIRouter, Cookie, Depends, Request, Response, status
 from fastapi.security import OAuth2PasswordRequestForm
 from sqlalchemy import select
 
@@ -12,7 +16,7 @@ from app.core.errors import ERROR_RESPONSES, AppError, conflict
 from app.core.passwords import hash_password
 from app.core.rate_limit import LoginRateLimiter
 from app.models import Role, Teacher, User
-from app.schemas.auth import RefreshRequest, TokenResponse, UserCreate, UserRead
+from app.schemas.auth import TokenResponse, UserCreate, UserRead
 from app.services import auth as auth_service
 
 router = APIRouter(prefix="/auth", tags=["auth"], responses=ERROR_RESPONSES)
@@ -33,20 +37,34 @@ def _set_refresh_cookie(response: Response, token: str, settings: Settings) -> N
     )
 
 
+def _clear_refresh_cookie(response: Response, settings: Settings) -> None:
+    response.delete_cookie(
+        REFRESH_COOKIE,
+        path=REFRESH_COOKIE_PATH,
+        httponly=True,
+        secure=settings.cookie_secure,
+        samesite="strict",
+    )
+
+
 def _token_response(
     response: Response, issued: auth_service.IssuedTokens, settings: Settings
 ) -> TokenResponse:
     _set_refresh_cookie(response, issued.refresh_token, settings)
     response.headers["Cache-Control"] = "no-store"
-    return TokenResponse(
-        access_token=issued.access_token,
-        expires_in=issued.expires_in,
-        refresh_token=issued.refresh_token,
+    return TokenResponse(access_token=issued.access_token, expires_in=issued.expires_in)
+
+
+def _invalid_refresh(settings: Settings) -> AppError:
+    """401 that also clears the cookie (errors are rendered as a new response, so the header
+    has to travel with the exception)."""
+    clearing = Response()
+    _clear_refresh_cookie(clearing, settings)
+    return AppError(
+        status.HTTP_401_UNAUTHORIZED,
+        "Invalid or expired refresh token",
+        headers={"set-cookie": clearing.headers["set-cookie"]},
     )
-
-
-def _invalid_refresh() -> AppError:
-    return AppError(status.HTTP_401_UNAUTHORIZED, "Invalid or expired refresh token")
 
 
 @router.post("/login", response_model=TokenResponse, summary="Log in with e-mail and password")
@@ -90,32 +108,29 @@ def refresh(
     response: Response,
     db: DbDep,
     settings: SettingsDep,
-    body: Annotated[RefreshRequest | None, Body()] = None,
     cookie_token: Annotated[str | None, Cookie(alias=REFRESH_COOKIE)] = None,
 ) -> TokenResponse:
-    raw = (body.refresh_token if body else None) or cookie_token
-    if not raw:
-        raise _invalid_refresh()
-    issued = auth_service.rotate_refresh_token(db, raw, settings)
+    """Uses the refresh cookie; returns a new access token and rotates the cookie."""
+    if not cookie_token:
+        raise _invalid_refresh(settings)
+    issued = auth_service.rotate_refresh_token(db, cookie_token, settings)
     db.commit()  # persist revocations even when the token is rejected
     if issued is None:
-        response.delete_cookie(REFRESH_COOKIE, path=REFRESH_COOKIE_PATH)
-        raise _invalid_refresh()
+        raise _invalid_refresh(settings)
     return _token_response(response, issued, settings)
 
 
 @router.post("/logout", status_code=status.HTTP_204_NO_CONTENT, summary="Revoke a refresh token")
 def logout(
     db: DbDep,
-    body: Annotated[RefreshRequest | None, Body()] = None,
+    settings: SettingsDep,
     cookie_token: Annotated[str | None, Cookie(alias=REFRESH_COOKIE)] = None,
 ) -> Response:
-    raw = (body.refresh_token if body else None) or cookie_token
-    if raw:
-        auth_service.revoke_refresh_token(db, raw)
+    if cookie_token:
+        auth_service.revoke_refresh_token(db, cookie_token)
         db.commit()
     response = Response(status_code=status.HTTP_204_NO_CONTENT)
-    response.delete_cookie(REFRESH_COOKIE, path=REFRESH_COOKIE_PATH)
+    _clear_refresh_cookie(response, settings)
     return response
 
 

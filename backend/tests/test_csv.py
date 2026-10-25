@@ -192,3 +192,20 @@ def test_safe_cell() -> None:
     assert csv_io.safe_cell("@SUM(A1)") == "'@SUM(A1)"
     assert csv_io.safe_cell("plain") == "plain"
     assert csv_io.safe_cell(3) == "3"
+
+
+@pytest.mark.parametrize("payload", ["=1+1", "+SUM(A1:A2)", "-2+3", "@cmd", "\tTAB", "\rCR"])
+def test_export_neutralises_every_formula_prefix(
+    client: TestClient, school: School, db: Session, payload: str
+) -> None:
+    school.student_a.guardian_name = payload
+    db.merge(school.student_a)
+    db.commit()
+    text = client.get(f"{STUDENTS}/export", headers=school.headers(school.admin)).text
+    row = next(
+        r
+        for r in csv.DictReader(io.StringIO(text))
+        if r["student_no"] == school.student_a.student_no
+    )
+    assert row["guardian_name"] == "'" + payload
+    assert csv_io.safe_cell("safe text") == "safe text"

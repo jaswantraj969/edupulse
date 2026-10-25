@@ -16,6 +16,7 @@ from edupulse_ml import data, train
 def _write_fake_dataset(raw_dir: Path) -> dict[str, str]:
     rng = np.random.default_rng(7)
     hashes = {}
+    shared: pd.DataFrame | None = None
     for name, n in (("student-mat.csv", 300), ("student-por.csv", 360)):
         g1 = rng.integers(3, 20, n)
         failures = rng.choice([0, 0, 0, 0, 1, 2, 3], n)
@@ -41,6 +42,11 @@ def _write_fake_dataset(raw_dir: Path) -> dict[str, str]:
                 "failures": failures,
             }
         )
+        # The first 200 students take both courses, as in the real data.
+        if shared is None:
+            shared = frame.loc[:199, data.IDENTITY_COLUMNS].copy()
+        else:
+            frame.loc[:199, data.IDENTITY_COLUMNS] = shared.to_numpy()
         content = frame.to_csv(sep=";", index=False).encode()
         (raw_dir / name).write_bytes(content)
         hashes[name] = data.sha256(content)
@@ -71,6 +77,32 @@ def test_run_follows_protocol(result: dict[str, object]) -> None:
     ablations = result["ablations_cv_average_precision"]
     assert isinstance(ablations, dict)
     assert len(ablations) == 4
+
+
+def test_split_is_disjoint_and_holdout_scored_once(result: dict[str, object]) -> None:
+    audit = result["split_audit"]
+    assert isinstance(audit, dict)
+    assert audit["groups_crossing_holdout"] == 0
+    assert audit["groups_crossing_cv_folds"] == [0] * (train.CV_SPLITS * train.CV_REPEATS)
+    assert audit["groups_in_both_files"] > 0  # the fake data has shared identities too
+    log = result["test_scoring_log"]
+    assert isinstance(log, list)
+    assert log[0].startswith("freeze:")  # every decision fixed before the holdout is read
+    scored = [entry for entry in log if entry.startswith("score:")]
+    assert sorted(scored) == sorted({*scored})  # no model scored twice
+    assert len(scored) == len(train.CANDIDATE_ORDER) + 1  # + pre-term variant
+
+
+def test_pre_term_variant_and_importance(result: dict[str, object]) -> None:
+    pre = result["pre_term_variant"]
+    assert isinstance(pre, dict)
+    assert pre["features"] == ["absences", "failures"]
+    assert set(pre["test"]) >= {"average_precision", "recall", "precision"}
+    importance = result["permutation_importance_test"]
+    assert isinstance(importance, dict)
+    assert set(importance) == {"g1", "absences", "failures"}
+    assert all(v["app_computable"] for v in importance.values())
+    assert abs(sum(v["share"] for v in importance.values()) - 1) < 1e-9
 
 
 def test_write_outputs(result: dict[str, object], tmp_path: Path) -> None:

@@ -21,12 +21,12 @@ school year 2005–06, one file for Mathematics (395 rows) and one for Portugues
 
 Two properties of the data shaped the design:
 
-1. **The same student appears twice.** 382 students are in both course files. Splitting rows at
+1. **The same student appears twice.** The dataset documentation's merge on 13 identifying attributes yields 382 matched rows; in EduPulse's grouping 370 maths rows have a Portuguese match, forming 366 identity groups that span both files (9 groups with more than two rows are attribute collisions, kept together). Splitting rows at
    random would put a student's Maths row in training and their Portuguese row in the test set,
    inflating results. Using the attributes the dataset authors themselves use to match students,
    every split is **grouped by student** (662 groups).
 2. **Grades arrive in three periods** (G1, G2, G3). G3 is the final grade; G1 is known after the
-   first term. The **prediction moment is therefore the end of Term 1**: G1 may be used, G2 and
+   first term. The **prediction moment is therefore after first-period grades (end of Term 1)**: G1 may be used, G2 and
    G3 may not (G3 only defines the target: fail = G3 < 10/20, 22.0 % of rows).
 
 ## Choosing inputs: deployable and fair by construction
@@ -98,10 +98,32 @@ What the model learned (log-odds per standard deviation): Term 1 average **−2.
 | Out-of-fold | girls (95 fails) | 0.832 [0.755, 0.901] | 0.669 [0.585, 0.752] |
 | Out-of-fold | boys (89 fails) | 0.775 [0.685, 0.854] | 0.657 [0.560, 0.752] |
 
-The model misses failing boys somewhat more often (recall gap +0.083 on test, +0.056 out of fold).
-The intervals overlap and the samples are small, so the data cannot settle whether this gap is
-real — but it is reported rather than hidden, and the model card tells staff not to read a low
-score for a boy as reassurance.
+The point estimates show the model missing failing boys somewhat more often (recall gap +0.083 on
+test, +0.056 out of fold), but with 30 and 16 test positives the intervals overlap heavily. The
+result is **inconclusive and is not evidence of fairness**: it neither confirms nor rules out a
+real difference. It is reported rather than hidden, and the model card tells staff not to read a
+low score for a boy as reassurance.
+
+## What the first-period grade is worth
+
+A pre-term variant without any period grade (absences and previous failures only), evaluated with
+the same protocol and its own out-of-fold threshold, reaches test AP 0.489 [0.361, 0.646] against
+0.817 [0.705, 0.901] for the deployed model. At the same 80 % recall its precision is 0.233
+[0.167, 0.299] versus 0.627 [0.500, 0.740]. Permutation importance on the test set attributes
+96.8 % of the deployed model's importance to `g1` — so the model is honest about its timing: it
+is a warning issued *after* first-period grades, not a prediction made from background.
+
+## Protocol history
+
+| Run | When | What changed | Decisions | Discarded? |
+|---|---|---|---|---|
+| 1 | M5 | Initial protocol: grouped holdout and CV, three candidates, OOF threshold, test once | Logistic regression; thresholds 0.315 / 0.134 | No |
+| 2 | Supervisor review (T-R1) | Added a recorded split audit, a holdout guard (decisions frozen before the test set is read; each model scored once), the pre-term variant and test-set permutation importance | Unchanged: same model choice, thresholds, test metrics and model file SHA-256 | No |
+
+The review asked whether any student fell on both sides of a split. The audit, now part of every
+run, shows 0 crossings for the holdout and for each of the 15 CV folds, so no run had to be
+discarded and the original holdout remains valid. The feature set did not change in the review
+(no family or private-life attributes were ever inputs), so no re-run on a new holdout was needed.
 
 ## From research data to the app
 

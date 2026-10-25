@@ -51,7 +51,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         expose_headers=["X-Request-ID"],
     )
     # Added last = outermost: the request id exists before CORS and every handler run.
-    app.add_middleware(SecurityHeadersMiddleware, hsts=settings.cookie_secure)
+    app.add_middleware(SecurityHeadersMiddleware, hsts=settings.hsts)
     app.add_middleware(RequestContextMiddleware)
     install_error_handlers(app)
     routers = (

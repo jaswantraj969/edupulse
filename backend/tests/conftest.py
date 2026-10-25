@@ -67,7 +67,8 @@ def client(session_factory: sessionmaker[Session], settings: Settings) -> Iterat
             yield session
 
     app.dependency_overrides[get_db] = _db
-    with TestClient(app) as test_client:
+    # HTTPS like a real deployment, so Secure cookies are sent back as a browser would.
+    with TestClient(app, base_url="https://testserver") as test_client:
         yield test_client
 
 

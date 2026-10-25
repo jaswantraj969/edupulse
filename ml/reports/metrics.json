@@ -7,7 +7,7 @@
     "selection_rule": "best mean CV AP; simpler model preferred within 0.01",
     "threshold_rule": "highest threshold with out-of-fold recall >= 0.8",
     "bootstrap": "2000 cluster (student) resamples, percentile 95% CI",
-    "prediction_moment": "end of the first grading period (G1 known; G2, G3 unknown)",
+    "prediction_moment": "after first-period grades (end of Term 1): G1 known; G2 and G3 unknown",
     "target": "final grade G3 < 10 (fail)"
   },
   "data": {
@@ -30,19 +30,25 @@
         "name": "g1",
         "source": "G1",
         "description": "First-period grade (0-20)",
-        "app_mapping": "Weighted mean percentage of the student's Term 1 assessments across subjects / 5"
+        "app_mapping": "Weighted mean percentage of the student's Term 1 assessments across subjects / 5",
+        "app_computable": true,
+        "justification": "School record; the strongest signal and what teachers already act on."
       },
       {
         "name": "absences",
         "source": "absences",
         "description": "Number of school absences (0-93)",
-        "app_mapping": "Term 1 'absent' days extrapolated to the full year (x school days / Term 1 days)"
+        "app_mapping": "Term 1 'absent' days extrapolated to the full year (x school days / Term 1 days)",
+        "app_computable": true,
+        "justification": "School attendance record; something the school can act on."
       },
       {
         "name": "failures",
         "source": "failures",
         "description": "Number of past class failures (0-3)",
-        "app_mapping": "students.prior_failures"
+        "app_mapping": "students.prior_failures",
+        "app_computable": true,
+        "justification": "School record of past academic outcomes (years repeated)."
       }
     ],
     "excluded_leakage": [
@@ -349,6 +355,139 @@
     ]
   },
   "chosen_model": "logistic_regression",
+  "split_audit": {
+    "identity_attributes": [
+      "school",
+      "sex",
+      "age",
+      "address",
+      "famsize",
+      "Pstatus",
+      "Medu",
+      "Fedu",
+      "Mjob",
+      "Fjob",
+      "reason",
+      "nursery",
+      "internet"
+    ],
+    "documented_merge_rows": 382,
+    "groups": 662,
+    "groups_in_both_files": 366,
+    "groups_with_more_than_two_rows": 9,
+    "both_file_groups_in_test": 74,
+    "groups_crossing_holdout": 0,
+    "groups_crossing_cv_folds": [
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0
+    ]
+  },
+  "test_scoring_log": [
+    "freeze: chosen, t_high, t_medium, t_pre_term",
+    "score: dummy_prior",
+    "score: logistic_regression",
+    "score: gradient_boosting",
+    "score: pre_term"
+  ],
+  "pre_term_variant": {
+    "features": [
+      "absences",
+      "failures"
+    ],
+    "model": "logistic_regression",
+    "cv": {
+      "average_precision": {
+        "mean": 0.47013989320249083,
+        "sd": 0.05825979515000106
+      },
+      "roc_auc": {
+        "mean": 0.693526669857666,
+        "sd": 0.05266917427945547
+      },
+      "brier": {
+        "mean": 0.15143711811343857,
+        "sd": 0.011445826096335612
+      }
+    },
+    "threshold_high": 0.1483517475726522,
+    "test": {
+      "average_precision": {
+        "estimate": 0.48948066516631117,
+        "ci_low": 0.36101981163365554,
+        "ci_high": 0.6464462650425044,
+        "n": 2000
+      },
+      "roc_auc": {
+        "estimate": 0.7017871432381968,
+        "ci_low": 0.5986022332702019,
+        "ci_high": 0.792237387160298,
+        "n": 2000
+      },
+      "brier": {
+        "estimate": 0.14135636344899757,
+        "ci_low": 0.11352601107620838,
+        "ci_high": 0.17005246093817328,
+        "n": 2000
+      },
+      "precision": {
+        "estimate": 0.23270440251572327,
+        "ci_low": 0.1666411042944785,
+        "ci_high": 0.2994011976047904,
+        "n": 2000
+      },
+      "recall": {
+        "estimate": 0.8043478260869565,
+        "ci_low": 0.6841784338896021,
+        "ci_high": 0.9149379432624111,
+        "n": 2000
+      },
+      "f1": {
+        "estimate": 0.3609756097560976,
+        "ci_low": 0.2708192567567567,
+        "ci_high": 0.44343891402714936,
+        "n": 2000
+      },
+      "flag_rate": {
+        "estimate": 0.7607655502392344,
+        "ci_low": 0.6984660481896663,
+        "ci_high": 0.8226600985221675,
+        "n": 2000
+      }
+    }
+  },
+  "permutation_importance_test": {
+    "g1": {
+      "mean_ap_drop": 0.5638505313531806,
+      "sd": 0.03421979299989131,
+      "share": 0.9679925314369171,
+      "app_computable": true
+    },
+    "absences": {
+      "mean_ap_drop": 0.008415370540970572,
+      "sd": 0.009601407017027386,
+      "share": 0.014447119192003243,
+      "app_computable": true
+    },
+    "failures": {
+      "mean_ap_drop": 0.01022881065924421,
+      "sd": 0.0054522780263801624,
+      "share": 0.017560349371079597,
+      "app_computable": true
+    }
+  },
   "thresholds": {
     "high": 0.31539298542020494,
     "medium": 0.13415628398506782,

@@ -100,10 +100,8 @@ def test_security_headers_on_api_and_docs(client: TestClient) -> None:
     assert "cache-control" not in docs.headers
 
 
-def test_hsts_when_cookies_are_secure(
-    session_factory: sessionmaker[Session], settings: Settings
-) -> None:
-    settings.cookie_secure = True
+def test_hsts_when_enabled(session_factory: sessionmaker[Session], settings: Settings) -> None:
+    settings.hsts = True
     response = _boom_app(session_factory, settings).get("/api/v1/health")
     assert response.headers["strict-transport-security"].startswith("max-age=31536000")
 

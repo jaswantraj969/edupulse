@@ -24,6 +24,8 @@ class Feature:
     source: str  # column in the UCI data
     description: str
     app_mapping: str
+    app_computable: bool = True
+    justification: str = ""
 
 
 FEATURES = [
@@ -32,18 +34,21 @@ FEATURES = [
         "G1",
         "First-period grade (0-20)",
         "Weighted mean percentage of the student's Term 1 assessments across subjects / 5",
+        justification="School record; the strongest signal and what teachers already act on.",
     ),
     Feature(
         "absences",
         "absences",
         "Number of school absences (0-93)",
         "Term 1 'absent' days extrapolated to the full year (x school days / Term 1 days)",
+        justification="School attendance record; something the school can act on.",
     ),
     Feature(
         "failures",
         "failures",
         "Number of past class failures (0-3)",
         "students.prior_failures",
+        justification="School record of past academic outcomes (years repeated).",
     ),
 ]
 FEATURE_NAMES = [f.name for f in FEATURES]

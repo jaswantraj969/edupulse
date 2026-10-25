@@ -75,7 +75,8 @@ def render_run_record(result: dict[str, Any], meta: dict[str, Any]) -> str:
         "",
         "## Fairness check by sex (chosen model, high threshold)",
         "",
-        "Sex is not a model input; it is used here only to compare error rates.",
+        "Sex is not a model input; it is used here only to compare error rates. With these group",
+        "sizes the result is **inconclusive and is not evidence of fairness**.",
         "",
         "| Set | Group | n | Positives | Recall | Precision | Flag rate |",
         "|---|---|---|---|---|---|---|",
@@ -92,6 +93,69 @@ def render_run_record(result: dict[str, Any], meta: dict[str, Any]) -> str:
             f"| {set_name} | gap F-M | | | {gap['recall']:+.3f} | {gap['precision']:+.3f} "
             f"| {gap['flag_rate']:+.3f} |"
         )
+
+    sa = result.get("split_audit")
+    if sa:
+        lines += [
+            "",
+            "## Split audit (students in both course files)",
+            "",
+            f"- Identity attributes used for matching: {len(sa['identity_attributes'])}.",
+            f"- Rows produced by the dataset documentation's merge on them: "
+            f"{sa['documented_merge_rows']}.",
+            f"- Identity groups: {sa['groups']}; groups with rows in both files: "
+            f"{sa['groups_in_both_files']} ({sa['both_file_groups_in_test']} in the test set); "
+            f"groups with more than two rows (attribute collisions, kept together): "
+            f"{sa['groups_with_more_than_two_rows']}.",
+            f"- Groups on both sides of the holdout: **{sa['groups_crossing_holdout']}**; "
+            f"on both sides of any CV fold: **{max(sa['groups_crossing_cv_folds'])}** "
+            f"(checked for all {len(sa['groups_crossing_cv_folds'])} folds).",
+        ]
+    log = result.get("test_scoring_log")
+    if log:
+        lines += ["", "Holdout access log: " + " → ".join(log) + "."]
+
+    pre = result.get("pre_term_variant")
+    if pre:
+        t = pre["test"]
+        lines += [
+            "",
+            "## Pre-term variant (no period grades)",
+            "",
+            f"Same model family, inputs {', '.join(pre['features'])}; own threshold "
+            f"{pre['threshold_high']:.3f} (80 % out-of-fold recall); test scored once.",
+            "",
+            "| Model | CV average precision | Test AP | Test ROC AUC "
+            "| Precision @ t | Recall @ t |",
+            "|---|---|---|---|---|---|",
+            f"| After first-period grades (deployed) | "
+            f"{result['cv'][result['chosen_model']]['average_precision']['mean']:.3f} ± "
+            f"{result['cv'][result['chosen_model']]['average_precision']['sd']:.3f} | "
+            + " | ".join(
+                _ci(result["test"][result["chosen_model"]][k])
+                for k in ("average_precision", "roc_auc", "precision", "recall")
+            )
+            + " |",
+            f"| Pre-term (no grades) | {pre['cv']['average_precision']['mean']:.3f} ± "
+            f"{pre['cv']['average_precision']['sd']:.3f} | "
+            + " | ".join(_ci(t[k]) for k in ("average_precision", "roc_auc", "precision", "recall"))
+            + " |",
+        ]
+
+    imp = result.get("permutation_importance_test")
+    if imp:
+        lines += [
+            "",
+            "## Permutation importance on the test set (deployed model; descriptive only)",
+            "",
+            "| Feature | Mean drop in AP | SD | Share | Computable by EduPulse |",
+            "|---|---|---|---|---|",
+        ]
+        for name, m in imp.items():
+            lines.append(
+                f"| {name} | {m['mean_ap_drop']:.3f} | {m['sd']:.3f} | {m['share']:.1%} | "
+                f"{'yes' if m['app_computable'] else 'no'} |"
+            )
 
     lines += [
         "",

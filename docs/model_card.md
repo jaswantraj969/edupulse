@@ -10,9 +10,9 @@ CI re-runs it and fails if any published (3-decimal) number differs (`python -m 
 | | |
 |---|---|
 | Task | Estimate the probability that a student **fails the year** (final grade below 10/20) |
-| Prediction moment | End of the first term: first-period grade known, later grades unknown |
+| Prediction moment | **After first-period grades** (end of Term 1): G1 is an input; G2 and G3 are not |
 | Model | Logistic regression (standardised inputs), scikit-learn 1.9.1 |
-| Inputs | Term 1 average (0–20), absences, previous year failures |
+| Inputs (complete list) | `g1` Term 1 average (0–20), `absences`, `failures` (previous years failed) — nothing else |
 | Output | Probability and a band: **high** ≥ 0.315, **medium** ≥ 0.134, **low** otherwise; per-input contributions in plain language |
 | Training data | UCI Student Performance (Cortez & Silva, 2008), CC BY 4.0, DOI 10.24432/C5TG7T |
 | Owner | EduPulse project; model file SHA-256 `48f819e394dfefc38d982c54215781de01bfe94679fcbdff052352698a614b75` |
@@ -34,17 +34,36 @@ before local re-validation (see Limitations).
 
 ## Data
 
-- 1,044 rows: 395 Mathematics + 649 Portuguese course records from two Portuguese public
-  secondary schools, school year 2005–06; 662 distinct students (382 appear in both courses).
+- **Both UCI files are used:** 1,044 rows = 395 Mathematics + 649 Portuguese course records
+  from two Portuguese public secondary schools, school year 2005–06.
+- **Students in both files.** Matching on the 13 identifying attributes from the dataset
+  documentation gives 382 rows in its merge; 370 Mathematics rows have a Portuguese match.
+  EduPulse forms 662 identity groups, 366 of which have rows in both files (9 groups with more
+  than two rows are attribute collisions and are kept together, which is conservative).
+  **Grouped splitting:** no group was on both sides of the holdout (0) or of any of the 15 CV
+  folds (0 in each); 74 of the shared students are in the test set. An ungrouped split with
+  the same seed would have put 120 shared students on both sides. No run was discarded.
 - Positive class (final grade G3 < 10): 230 rows (22.0 %).
 - Files verified by SHA-256 on every load (`ml/data/SOURCE.md`).
 - **Leakage control.** G2 (second-period grade) and G3 are never inputs; G3 only defines the
   target. A student's two course rows are always in the same split (grouped splitting) so the
   model is never tested on a student it saw in training.
-- **Excluded on purpose (protected / sensitive):** sex, age, home address type, family size,
-  parents' cohabitation, parents' education and jobs, guardian, family/paid educational support,
-  internet at home, romantic relationship, alcohol use, health, school choice reason, travel time.
-  Sex is used *only* to measure error-rate differences (fairness check below).
+- **Excluded on purpose:** every attribute about a student's private life or family — sex,
+  age, home address type, family size, parents' cohabitation, parents' education and jobs,
+  guardian, family and paid educational support, school support, internet at home, romantic
+  relationship, alcohol use (Dalc, Walc), health, going out, free time, family relationship,
+  activities, nursery, wish for higher education, study time, school choice reason, travel time,
+  school. None was ever a model input. Sex is used *only* to measure error-rate differences.
+
+### Inputs and why each is kept
+
+| Input | What it is | Why it is acceptable |
+|---|---|---|
+| `g1` | First-period grade (0–20) | A school record of the student's own work; the main signal and what teachers already act on |
+| `absences` | Days absent | A school attendance record the school can act on |
+| `failures` | Previous school years failed (0–3) | A school record of past academic outcomes |
+
+All three are things the school records itself; none describes family, health or private life.
 
 ## Evaluation protocol
 
@@ -84,9 +103,21 @@ little better at the threshold; the pre-registered selection was kept rather tha
 test results, and the confidence intervals overlap widely. The dummy flags nobody because its
 constant probability (0.22) is below the threshold.
 
-Ablations (CV AP): adding age 0.801 ± 0.061 (no gain, so it stays out); without absences
-0.786 ± 0.053; without the Term 1 grade 0.470 ± 0.058 — a start-of-year model without grades
-would be far weaker.
+### Value of the first-period grade: pre-term variant
+
+A variant **without any period grade** (inputs `absences`, `failures`; same model family; its own
+threshold 0.148 from out-of-fold predictions; test scored once) shows what G1 adds:
+
+| Model | CV AP | Test AP [95 % CI] | Test ROC AUC | Precision @ t | Recall @ t |
+|---|---|---|---|---|---|
+| After first-period grades (deployed) | 0.803 ± 0.057 | 0.817 [0.705, 0.901] | 0.936 [0.900, 0.966] | 0.627 [0.500, 0.740] | 0.804 [0.674, 0.915] |
+| Pre-term (no grades) | 0.470 ± 0.058 | 0.489 [0.361, 0.646] | 0.702 [0.599, 0.792] | 0.233 [0.167, 0.299] | 0.804 [0.684, 0.915] |
+
+At the same recall, the pre-term variant flags far more students who do not fail (precision 0.233
+vs 0.627). It is reported for comparison only; EduPulse does not serve it.
+
+Other ablations (CV AP): adding age 0.801 ± 0.061 (no gain, so it stays out); without absences
+0.786 ± 0.053.
 
 ## Fairness check (by sex, at the high threshold)
 
@@ -97,10 +128,9 @@ would be far weaker.
 | Out-of-fold | F | 463 | 95 | 0.832 [0.755, 0.901] | 0.669 [0.585, 0.752] | 0.255 [0.215, 0.294] |
 | Out-of-fold | M | 372 | 89 | 0.775 [0.685, 0.854] | 0.657 [0.560, 0.752] | 0.282 [0.232, 0.334] |
 
-**Gaps (F − M):** recall +0.083 on test and +0.056 out-of-fold — the model misses failing boys
-somewhat more often than failing girls; precision gaps are small (+0.041 / +0.012). All
-intervals overlap heavily and the male test group has only 16 fails, so the data cannot
-establish whether the gap is real. Staff should not read a low score for a boy as reassurance,
+**Gaps (F − M):** recall +0.083 on test and +0.056 out-of-fold; precision +0.041 / +0.012.
+With 30 and 16 test positives the intervals overlap heavily: **the result is inconclusive and is
+not evidence of fairness** — it can neither confirm nor rule out a real difference. Staff should not read a low score for a boy as reassurance,
 and the check must be repeated on local data (which EduPulse itself does not hold, because it
 does not store sex).
 
@@ -115,11 +145,17 @@ dominates.
 
 ## How EduPulse computes the inputs (mapping to the app)
 
-| Model input | UCI definition | EduPulse computation |
-|---|---|---|
-| `g1` | First-period grade, 0–20, per course | Weight-averaged percentage of all Term 1 assessments across subjects ÷ 5 |
-| `absences` | School absences (whole year) | Term 1 days marked *absent* × (school days in the year ÷ school days in Term 1) |
-| `failures` | Past class failures | `students.prior_failures` (0–3) |
+| Model input | UCI definition | EduPulse source (column / computation) | What synthetic demo students get |
+|---|---|---|---|
+| `g1` | First-period grade, 0–20, per course | `grades.score` / `assessments.max_score` for Term 1 assessments, weight-averaged across subjects, ÷ 5 | Computed from their seeded synthetic Term 1 grades (no constant, no imputation) |
+| `absences` | School absences (whole year) | `attendance_records` with status *absent* in Term 1 × (school days in the year ÷ school days in Term 1) | Computed from their seeded synthetic daily attendance |
+| `failures` | Past class failures | `students.prior_failures` (0–3) | The seeded synthetic value of that column |
+
+Every input is computable by EduPulse; nothing is constant-filled or imputed. A student with no
+Term 1 grade is not scored ("insufficient data"). Permutation importance on the test set
+(descriptive only, 50 repeats, drop in AP): `g1` 0.564 ± 0.034 (96.8 %), `failures`
+0.010 ± 0.005 (1.8 %), `absences` 0.008 ± 0.010 (1.4 %) — 100 % of the importance comes from
+app-computable inputs, so the deployed model is the model whose inputs the app really has.
 
 Students with no Term 1 grade are shown as *insufficient data* and not scored. In this
 installation all students are **synthetic demo data**; the UI labels every score
@@ -138,7 +174,8 @@ installation all students are **synthetic demo data**; the UI labels every score
 - Small sample (1,044 rows, 230 fails; 46 in the test set) → wide confidence intervals.
 - Only three inputs: the model cannot see anything about a student's circumstances. That is a
   deliberate privacy choice, and also why a human must interpret every score.
-- The fairness check covers sex only, on the source data; other groups could not be assessed.
+- The fairness check covers sex only, on the source data, and is inconclusive (not evidence of
+  fairness); other groups could not be assessed.
 - Probabilities are not re-calibrated for the app's population; use the bands, not the decimals.
 
 ## Licence and attribution

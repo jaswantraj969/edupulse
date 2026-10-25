@@ -1,14 +1,11 @@
 import { useQuery } from '@tanstack/react-query'
-import { lazy, Suspense } from 'react'
 import { Link } from 'react-router'
-import { DeferredRender } from '@/components/DeferredRender'
 import { EmptyState, ErrorState, LoadingState, PageHeader } from '@/components/ui'
 import { api } from '@/lib/api'
 import { useUser } from '@/lib/auth'
 import type { DashboardSummary } from '@/lib/types'
+import { AttendanceTrendChart, GradeDistributionChart } from './DashboardCharts'
 
-const AttendanceTrendChart = lazy(() => import('./DashboardCharts').then((m) => ({ default: m.AttendanceTrendChart })))
-const GradeDistributionChart = lazy(() => import('./DashboardCharts').then((m) => ({ default: m.GradeDistributionChart })))
 
 function StatTile({ label, value, to }: { label: string; value: number; to?: string }) {
   const body = (
@@ -32,7 +29,7 @@ function ChartCard({ title, children }: { title: string; children: React.ReactNo
       <h2 id={`${title}-h`} className="mb-3 text-base font-semibold">
         {title}
       </h2>
-      <Suspense fallback={<LoadingState label="Loading chart…" />}>{children}</Suspense>
+      {children}
     </section>
   )
 }
@@ -60,18 +57,14 @@ export default function DashboardPage() {
           <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
             <ChartCard title="Weekly attendance rate">
               {query.data.attendance_trend.length ? (
-                <DeferredRender minHeight="18rem" label="Weekly attendance chart">
-                  <AttendanceTrendChart data={query.data.attendance_trend} />
-                </DeferredRender>
+                <AttendanceTrendChart data={query.data.attendance_trend} />
               ) : (
                 <EmptyState title="No attendance recorded yet" />
               )}
             </ChartCard>
             <ChartCard title="Students by average grade">
               {query.data.grade_distribution.some((b) => b.students > 0) ? (
-                <DeferredRender minHeight="18rem" label="Grade distribution chart">
-                  <GradeDistributionChart data={query.data.grade_distribution} />
-                </DeferredRender>
+                <GradeDistributionChart data={query.data.grade_distribution} />
               ) : (
                 <EmptyState title="No grades entered yet" />
               )}

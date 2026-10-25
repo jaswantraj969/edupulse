@@ -51,7 +51,10 @@ def model_info(model: risk.RiskModel, settings: Settings) -> RiskModelInfo:
         version=model.version,
         model_type=meta["model_type"],
         trained_at=meta["trained_at"],
-        prediction_moment="End of Term 1 (first-period grades known; later grades not used)",
+        prediction_moment=(
+            "After first-period grades (end of Term 1): Term 1 grades are used; "
+            "later grades are not"
+        ),
         thresholds={"high": model.high, "medium": model.medium},
         evaluation=meta.get("evaluation", {}),
         training_data=(

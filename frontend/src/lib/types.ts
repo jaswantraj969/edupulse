@@ -35,7 +35,7 @@ export interface TokenResponse {
   access_token: string
   token_type: string
   expires_in: number
-  refresh_token: string
+  // The refresh token is never in a response body: it is an httpOnly, Secure, SameSite=Strict cookie.
 }
 
 export interface Student {

@@ -56,10 +56,9 @@ def test_seed_is_deterministic(session_factory: sessionmaker[Session]) -> None:
 
 def test_resolve_password_enforces_policy() -> None:
     assert resolve_password("Valid-Password-1") == "Valid-Password-1"
-    generated = resolve_password(None)
-    assert len(generated) >= 12
-    with pytest.raises(SystemExit):
-        resolve_password("weak")
+    for bad in (None, "", "   ", "weak", "change-me-local-only", "Password123"):
+        with pytest.raises(SystemExit):
+            resolve_password(bad)
 
 
 def test_main_refuses_to_overwrite_and_resets(
@@ -85,12 +84,16 @@ def test_main_refuses_to_overwrite_and_resets(
         assert (s.scalar(select(func.count()).select_from(AttendanceRecord)) or 0) > 0
 
 
-def test_main_prints_generated_password_when_unset(
-    session_factory: sessionmaker[Session],
-    monkeypatch: pytest.MonkeyPatch,
-    capsys: pytest.CaptureFixture[str],
+@pytest.mark.parametrize("value", [None, "", "change-me"])
+def test_main_refuses_missing_or_default_password(
+    session_factory: sessionmaker[Session], monkeypatch: pytest.MonkeyPatch, value: str | None
 ) -> None:
     monkeypatch.setattr(seed_module, "get_session_factory", lambda: session_factory)
-    monkeypatch.delenv("EDUPULSE_DEMO_PASSWORD", raising=False)
-    seed_module.main(["--students", "5", "--teachers", "8", "--staff", "1"])
-    assert "Generated demo password" in capsys.readouterr().out
+    if value is None:
+        monkeypatch.delenv("EDUPULSE_DEMO_PASSWORD", raising=False)
+    else:
+        monkeypatch.setenv("EDUPULSE_DEMO_PASSWORD", value)
+    with pytest.raises(SystemExit):
+        seed_module.main(["--students", "5", "--teachers", "8", "--staff", "1"])
+    with session_factory() as s:
+        assert not seed_module.database_has_data(s)

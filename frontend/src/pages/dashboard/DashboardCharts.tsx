@@ -1,4 +1,5 @@
-// Loaded lazily: Recharts is the largest dependency and only the dashboard needs it.
+// Dashboard charts (Recharts). Imported directly by the route-split dashboard page; lazy loading
+// and viewport deferral were measured in review T-R1 and did not reach the Lighthouse target.
 import { Bar, BarChart, CartesianGrid, Line, LineChart, Tooltip, XAxis, YAxis } from 'recharts'
 import { INK, SERIES, tooltipStyle } from '@/lib/chartTheme'
 import { useTheme } from '@/lib/theme'

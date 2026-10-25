@@ -33,6 +33,7 @@ import sklearn
 from sklearn.base import ClassifierMixin, clone
 from sklearn.dummy import DummyClassifier
 from sklearn.ensemble import HistGradientBoostingClassifier
+from sklearn.inspection import permutation_importance
 from sklearn.linear_model import LogisticRegression
 from sklearn.model_selection import StratifiedGroupKFold
 from sklearn.pipeline import Pipeline, make_pipeline
@@ -40,6 +41,7 @@ from sklearn.preprocessing import StandardScaler
 
 from edupulse_ml import data, evaluate, explain, features
 from edupulse_ml.evaluate import FloatArray, IntArray
+from edupulse_ml.guard import HoldoutGuard
 
 SEED = 20251025
 HOLDOUT_SPLITS = 5  # one fold of five = 20 % holdout
@@ -50,6 +52,8 @@ TARGET_RECALL_MEDIUM = 0.95
 SELECTION_TOLERANCE = 0.01
 BOOTSTRAP_RESAMPLES = 2000
 MODEL_VERSION = "1.0.0"
+PRE_TERM_FEATURES = ["absences", "failures"]  # no period grades at all
+IMPORTANCE_REPEATS = 50
 
 ML_DIR = Path(__file__).resolve().parents[1]
 ARTIFACT_DIR = ML_DIR / "artifacts"
@@ -147,6 +151,27 @@ def subgroup_report(
     return report
 
 
+def split_audit(df: pd.DataFrame, split: Split) -> dict[str, Any]:
+    """Evidence that no student is on both sides of the holdout or of any CV fold."""
+    groups = df["student_group"].to_numpy()
+    courses = df.groupby("student_group")["course"].agg(set)
+    both = {int(g) for g in courses[courses.map(lambda c: {"mat", "por"} <= c)].index.to_numpy()}
+    train_g, test_g = set(groups[split.train]), set(groups[split.test])
+    fold_g = groups[split.train]
+    mat = df[df["course"] == "mat"]
+    por = df[df["course"] == "por"]
+    return {
+        "identity_attributes": data.IDENTITY_COLUMNS,
+        "documented_merge_rows": len(mat.merge(por, on=data.IDENTITY_COLUMNS)),
+        "groups": len(courses),
+        "groups_in_both_files": len(both),
+        "groups_with_more_than_two_rows": int((df.groupby("student_group").size() > 2).sum()),
+        "both_file_groups_in_test": len(both & test_g),
+        "groups_crossing_holdout": len(train_g & test_g),
+        "groups_crossing_cv_folds": [len(set(fold_g[a]) & set(fold_g[b])) for a, b in split.folds],
+    }
+
+
 def run(raw_dir: Path = data.RAW_DIR) -> dict[str, Any]:
     df = data.load(raw_dir)
     X = features.design_matrix(df)
@@ -154,8 +179,9 @@ def run(raw_dir: Path = data.RAW_DIR) -> dict[str, Any]:
     groups = df["student_group"].to_numpy()
     sex = df["sex"].to_numpy()
     split = make_split(y, groups)
-    if set(groups[split.train]) & set(groups[split.test]):
-        raise RuntimeError("A student appears in both the training and the test split")
+    audit = split_audit(df, split)
+    if audit["groups_crossing_holdout"] or any(audit["groups_crossing_cv_folds"]):
+        raise RuntimeError("A student appears on both sides of a split")
 
     # --- repeated CV on identical folds ---------------------------------------------------
     cv: dict[str, Any] = {}
@@ -187,23 +213,73 @@ def run(raw_dir: Path = data.RAW_DIR) -> dict[str, Any]:
         scores, _ = cross_validate(chosen, features.design_matrix(df, names), y, split)
         ablations[label] = summarise(scores)["average_precision"]
 
+    # --- pre-term variant (no period grades): same family, its own OOF threshold -------------
+    X_pre = features.design_matrix(df, PRE_TERM_FEATURES)
+    pre_scores, pre_oof = cross_validate(chosen, X_pre, y, split)
+    t_pre = evaluate.threshold_for_recall(y_train, pre_oof, TARGET_RECALL_HIGH)
+
     # --- final fit and the single test evaluation ---------------------------------------------
-    X_train, X_test = X.iloc[split.train], X.iloc[split.test]
+    # Every decision (model, thresholds, variant threshold) is frozen before the holdout is read.
+    guard = HoldoutGuard(split.test)
+    guard.freeze(chosen=chosen, t_high=t_high, t_medium=t_medium, t_pre_term=t_pre)
+    X_train, X_test = X.iloc[split.train], X.iloc[guard.indices()]
     y_test, g_test = y[split.test], groups[split.test]
     test: dict[str, Any] = {}
     final_models = {}
+
+    def at(threshold: float) -> Any:
+        def stat(yy: IntArray, pp: FloatArray) -> dict[str, float]:
+            return evaluate.ranking_metrics(yy, pp) | evaluate.threshold_metrics(yy, pp, threshold)
+
+        return stat
+
     for name in CANDIDATE_ORDER:
         final_models[name] = clone(make_model(name)).fit(X_train, y_train)
-        p_test = final_models[name].predict_proba(X_test)[:, 1]
-
-        def stat(yy: IntArray, pp: FloatArray) -> dict[str, float]:
-            return evaluate.ranking_metrics(yy, pp) | evaluate.threshold_metrics(yy, pp, t_high)
-
+        p_test = guard.score(name, final_models[name], X_test)
         test[name] = evaluate.cluster_bootstrap(
-            y_test, p_test, g_test, stat, BOOTSTRAP_RESAMPLES, SEED
+            y_test, p_test, g_test, at(t_high), BOOTSTRAP_RESAMPLES, SEED
         )
     model = final_models[chosen]
-    p_chosen = model.predict_proba(X_test)[:, 1]
+    p_chosen = guard.predictions(chosen)
+
+    pre_model = clone(make_model(chosen)).fit(X_pre.iloc[split.train], y_train)
+    p_pre = guard.score("pre_term", pre_model, X_pre.iloc[split.test])
+    pre_term = {
+        "features": PRE_TERM_FEATURES,
+        "model": chosen,
+        "cv": summarise(pre_scores),
+        "threshold_high": t_pre,
+        "test": evaluate.cluster_bootstrap(
+            y_test, p_pre, g_test, at(t_pre), BOOTSTRAP_RESAMPLES, SEED
+        ),
+    }
+
+    # Descriptive only (no decision depends on it): how much test AP drops when each input of
+    # the deployed model is shuffled.
+    importance = permutation_importance(
+        model,
+        X_test,
+        y_test,
+        scoring="average_precision",
+        n_repeats=IMPORTANCE_REPEATS,
+        random_state=SEED,
+    )
+    app_names = {f.name for f in features.FEATURES if f.app_computable}
+    positive = {
+        n: max(0.0, float(m)) for n, m in zip(X.columns, importance.importances_mean, strict=True)
+    }
+    total = sum(positive.values()) or 1.0
+    permutation = {
+        name: {
+            "mean_ap_drop": float(m),
+            "sd": float(sd),
+            "share": positive[name] / total,
+            "app_computable": name in app_names,
+        }
+        for name, m, sd in zip(
+            X.columns, importance.importances_mean, importance.importances_std, strict=True
+        )
+    }
     fairness = {
         "test": subgroup_report(y_test, p_chosen, g_test, sex[split.test], t_high, SEED),
         "out_of_fold": subgroup_report(
@@ -244,7 +320,9 @@ def run(raw_dir: Path = data.RAW_DIR) -> dict[str, Any]:
             ),
             "threshold_rule": f"highest threshold with out-of-fold recall >= {TARGET_RECALL_HIGH}",
             "bootstrap": f"{BOOTSTRAP_RESAMPLES} cluster (student) resamples, percentile 95% CI",
-            "prediction_moment": "end of the first grading period (G1 known; G2, G3 unknown)",
+            "prediction_moment": (
+                "after first-period grades (end of Term 1): G1 known; G2 and G3 unknown"
+            ),
             "target": f"final grade G3 < {features.PASS_MARK} (fail)",
         },
         "data": {
@@ -266,6 +344,10 @@ def run(raw_dir: Path = data.RAW_DIR) -> dict[str, Any]:
         "cv": {name: cv[name]["summary"] for name in CANDIDATE_ORDER},
         "cv_folds": {name: cv[name]["folds"] for name in CANDIDATE_ORDER},
         "chosen_model": chosen,
+        "split_audit": audit,
+        "test_scoring_log": guard.log,
+        "pre_term_variant": pre_term,
+        "permutation_importance_test": permutation,
         "thresholds": {"high": t_high, "medium": t_medium, "out_of_fold_at_high": oof_at_threshold},
         "ablations_cv_average_precision": ablations,
         "test": test,

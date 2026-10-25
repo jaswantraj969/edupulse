@@ -97,7 +97,7 @@ export default function RiskListPage() {
     <>
       <PageHeader
         title="Early warning"
-        description="Students who may need support, estimated at the end of Term 1."
+        description="Students who may need support, estimated after first-period (Term 1) grades."
         actions={
           classId && (
             <Button variant="secondary" onClick={() => void exportCsv()} loading={exporting} disabled={!query.data}>

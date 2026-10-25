@@ -29,7 +29,7 @@ describe('api client', () => {
     const fetchMock = vi
       .fn()
       .mockResolvedValueOnce(respond(401, { error: { code: 'unauthorized', message: 'expired' } }))
-      .mockResolvedValueOnce(respond(200, { access_token: 'new', token_type: 'bearer', expires_in: 900, refresh_token: 'r' }))
+      .mockResolvedValueOnce(respond(200, { access_token: 'new', token_type: 'bearer', expires_in: 900 }))
       .mockResolvedValueOnce(respond(200, { id: 1 }))
     vi.stubGlobal('fetch', fetchMock)
     setAccessToken('old')
