@@ -7,6 +7,7 @@ from fastapi.testclient import TestClient
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
+from app.core.config import Settings
 from app.models import AttendanceRecord, AttendanceStatus, Grade, TeachingAssignment
 from tests import factories as f
 from tests.conftest import School
@@ -54,6 +55,14 @@ def test_admin_dashboard(client: TestClient, school: School, db: Session) -> Non
     buckets = {b["label"]: b["students"] for b in body["grade_distribution"]}
     assert len(buckets) == 10
     assert buckets["60-70"] == 1  # 13/20 = 65 %
+    assert body["demo_mode"] is True
+
+
+def test_dashboard_reports_demo_mode(
+    client: TestClient, school: School, settings: Settings
+) -> None:
+    settings.demo_mode = False
+    assert client.get(URL, headers=school.headers(school.admin)).json()["demo_mode"] is False
 
 
 def test_teacher_dashboard_is_scoped(client: TestClient, school: School, db: Session) -> None:

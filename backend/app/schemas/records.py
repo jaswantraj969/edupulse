@@ -169,3 +169,4 @@ class DashboardSummary(BaseModel):
     counts: DashboardCounts
     attendance_trend: list[AttendancePoint]
     grade_distribution: list[GradeBucket]
+    demo_mode: bool = Field(description="The installation holds synthetic demo data")

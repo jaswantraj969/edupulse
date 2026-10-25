@@ -48,6 +48,14 @@ export default function DashboardPage() {
       {query.isError && <ErrorState error={query.error} onRetry={() => void query.refetch()} />}
       {query.data && (
         <div className="flex flex-col gap-6">
+          {query.data.demo_mode && (
+            <p role="note" className="rounded-xl border border-amber-300 bg-amber-50 p-3 text-sm text-amber-950 dark:border-amber-700 dark:bg-amber-950/60 dark:text-amber-100">
+              <span className="mr-2 inline-flex rounded-full bg-amber-200 px-2 py-0.5 text-xs font-semibold tracking-wide text-amber-950 uppercase dark:bg-amber-800 dark:text-amber-50">
+                Demo — synthetic data
+              </span>
+              Every person and record here is generated; none refers to a real student or member of staff.
+            </p>
+          )}
           <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
             <StatTile label="Students" value={query.data.counts.students} to="/students" />
             <StatTile label="Classes" value={query.data.counts.classes} to="/classes" />

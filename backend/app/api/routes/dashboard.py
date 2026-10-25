@@ -7,7 +7,7 @@ from fastapi import APIRouter
 from sqlalchemy import func, select
 from sqlalchemy.orm import InstrumentedAttribute
 
-from app.api.deps import CurrentUser, DbDep
+from app.api.deps import CurrentUser, DbDep, SettingsDep
 from app.api.pagination import AnySelect
 from app.core.errors import ERROR_RESPONSES
 from app.models import (
@@ -36,7 +36,7 @@ def _bucket_label(pct: float) -> str:
 
 
 @router.get("", response_model=DashboardSummary, summary="Dashboard figures")
-def dashboard(db: DbDep, user: CurrentUser) -> DashboardSummary:
+def dashboard(db: DbDep, user: CurrentUser, settings: SettingsDep) -> DashboardSummary:
     year = current_year(db)
     class_scope = visible_class_ids(user)
     student_scope = visible_student_ids(user)
@@ -105,4 +105,5 @@ def dashboard(db: DbDep, user: CurrentUser) -> DashboardSummary:
         counts=counts,
         attendance_trend=trend,
         grade_distribution=[GradeBucket(label=k, students=v) for k, v in distribution.items()],
+        demo_mode=settings.demo_mode,
     )

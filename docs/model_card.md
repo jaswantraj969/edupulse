@@ -148,7 +148,7 @@ not evidence of fairness**. Staff should not read a low score as reassurance for
 
 Each score lists both inputs with their effect in log-odds against a typical value (the training
 median: Term 1 subject average 11/20, 0 failures), sorted by size, in plain language — e.g.
-"Term 1 Mathematics average of 6.5/20 (32 %) is below the typical 11/20; this raises the
+"Term 1 Mathematics average of 6.5/20 (32 %) is below the typical 11.0/20; this raises the
 estimate." In the app every subject has its own two factors. For logistic
 regression this attribution is exact. Coefficients per standard deviation: Term 1 average
 −2.772, failures +0.257.

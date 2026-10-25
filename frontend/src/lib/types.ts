@@ -211,6 +211,7 @@ export interface DashboardSummary {
   counts: { students: number; teachers: number; staff: number; classes: number }
   attendance_trend: { week_start: string; attendance_rate: number; records: number }[]
   grade_distribution: { label: string; students: number }[]
+  demo_mode: boolean
 }
 
 export interface RowError {

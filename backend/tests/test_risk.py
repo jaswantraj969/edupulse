@@ -85,6 +85,19 @@ def test_risk_rises_as_grades_fall(model: risk.RiskModel) -> None:
     assert results[0].band == "low"
 
 
+def test_factor_text_compares_at_the_displayed_precision(model: risk.RiskModel) -> None:
+    """10.96 is shown as 11.0, so it must not read "below" a typical 11.0 (review T-FINAL)."""
+    assert model.reference["g1"] == pytest.approx(11.0)
+    text = risk._describe("g1", pair(10.96, subject="History"), 11.0, raises=True)
+    assert text.startswith("Term 1 History average of 11.0/20 (55%) is at or above")
+    assert "the typical 11.0/20;" in text
+    assert "below" not in text
+    lower = risk._describe("g1", pair(10.94, subject="History"), 11.0, raises=True)
+    assert "average of 10.9/20 (55%) is below the typical 11.0/20;" in lower
+    scored = {f.feature: f.text for f in score_one(model, pair(10.96)).factors}
+    assert "11.0/20 (55%) is at or above the typical 11.0/20" in scored["g1"]
+
+
 def test_factors_are_sorted_and_described(model: risk.RiskModel) -> None:
     result = score_one(model, pair(6.5, 2, subject="Mathematics"))
     assert result.status == "scored"

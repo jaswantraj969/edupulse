@@ -32,7 +32,7 @@ const classRisk: ClassRisk = {
   as_of: '2025-12-19',
   model,
   students: [
-    { student_id: 11, student_no: 'S11', first_name: 'Ana', last_name: 'Lopes', status: 'scored', probability: 0.72, band: 'high', top_subject_id: 1, top_subject: 'Mathematics', top_factor: 'Term 1 Mathematics average of 7.2/20 is below the typical 11/20; this raises the estimate.', inputs, subjects_scored: 3, subjects_insufficient: 0 },
+    { student_id: 11, student_no: 'S11', first_name: 'Ana', last_name: 'Lopes', status: 'scored', probability: 0.72, band: 'high', top_subject_id: 1, top_subject: 'Mathematics', top_factor: 'Term 1 Mathematics average of 7.2/20 is below the typical 11.0/20; this raises the estimate.', inputs, subjects_scored: 3, subjects_insufficient: 0 },
     { student_id: 12, student_no: 'S12', first_name: 'Rui', last_name: 'Mota', status: 'scored', probability: 0.05, band: 'low', top_subject_id: 2, top_subject: 'History', top_factor: 'Term 1 History average is above typical.', inputs: { ...inputs, g1: 15 }, subjects_scored: 3, subjects_insufficient: 0 },
     { student_id: 13, student_no: 'S13', first_name: 'Eva', last_name: 'Neves', status: 'insufficient_data', probability: null, band: null, top_subject_id: null, top_subject: null, top_factor: null, inputs: null, subjects_scored: 0, subjects_insufficient: 3 },
   ],
@@ -88,7 +88,7 @@ describe('RiskListPage', () => {
 function factors(subject: string, g1: number, direction: 'raises' | 'lowers'): RiskFactor[] {
   const relation = direction === 'raises' ? 'below' : 'at or above'
   return [
-    { feature: 'g1', label: 'Term 1 subject average', value: g1, contribution: direction === 'raises' ? 2.1 : -1.5, direction, text: `Term 1 ${subject} average of ${g1.toFixed(1)}/20 is ${relation} the typical 11/20; this ${direction} the estimate.` },
+    { feature: 'g1', label: 'Term 1 subject average', value: g1, contribution: direction === 'raises' ? 2.1 : -1.5, direction, text: `Term 1 ${subject} average of ${g1.toFixed(1)}/20 is ${relation} the typical 11.0/20; this ${direction} the estimate.` },
     { feature: 'failures', label: 'Previous failures', value: 1, contribution: 0.3, direction: 'raises', text: 'Failed 1 previous school year; this raises the estimate.' },
   ]
 }

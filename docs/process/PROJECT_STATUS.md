@@ -18,7 +18,7 @@ its output recorded in `REVIEW_PACKET.md`; it is not a claim of external verific
 
 ## Resume point
 
-T-R3 done: per-subject scoring (D80), proxy-aware rate limiting (D81); model v1.1.0 unchanged. Awaiting supervisor review; repository stays private.
+T-FINAL: rounding-consistent factor text and dashboard demo label (D82); release v1.1.0; repository made public by the owner's authorisation.
 
 ## Decisions
 
@@ -105,6 +105,7 @@ T-R3 done: per-subject scoring (D80), proxy-aware rate limiting (D81); model v1.
 | D79 | T-R2 | Results of the pre-registered run (seed 20261026): logistic regression selected (CV AP 0.769 vs 0.761); thresholds 0.327 / 0.162; test AP 0.845 [0.740, 0.924]; the failures-only pre-term variant collapses (flags everyone; test AP 0.414). Model v1.1.0. Absences removed from the scoring service, schemas, CSV export and UI factors (attendance itself still shown). | Model and docs now match what is known at the prediction moment. |
 | D80 | T-R3 | Score each (student, subject) pair: g1 = weighted Term 1 percentage in that subject ÷ 5, same model and failures value; student band/probability = highest-risk subject; subjects taught in the class without Term 1 grades are insufficient_data for that subject only; class list shows and sorts by the top subject; student panel lists every subject; CSV one row per pair. Cross-subject average removed. Model unchanged (v1.1.0), test set not re-scored. | A UCI row is one student in one course; the average narrowed the spread and could hide one failing subject. |
 | D81 | T-R3 | Compose network with a fixed subnet; nginx (web) pinned to 172.30.57.10 outside the dynamic ip_range; uvicorn --forwarded-allow-ips set to that address only (entrypoint refuses '*'); nginx sets X-Forwarded-For to $remote_addr. | With '*' a client could forge X-Forwarded-For and get a fresh per-client rate-limit key per attempt (reproduced live). |
+| D82 | T-FINAL | Factor text compares the Term 1 subject average and the reference at the displayed precision (one decimal each); "below" only if the rounded value is lower. The dashboard shows a "Demo — synthetic data" label when `demo_mode` is on (new `demo_mode` field in the dashboard response). No model, threshold or reported number changed. | A value shown as 11.0 read "below the typical 11/20"; portfolio screenshots must carry the demo label. |
 
 ## Deviations and limitations
 

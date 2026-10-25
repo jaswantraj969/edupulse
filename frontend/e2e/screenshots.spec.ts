@@ -54,6 +54,8 @@ test('documentation screenshots', async ({ page }, testInfo) => {
 
   await page.goto('/')
   await shoot(page, `${prefix}-dashboard`, prefix === 'desktop')
+  await expect(page.getByText('Demo — synthetic data')).toBeVisible()
+  if (prefix === 'desktop') await shoot(page, 'upwork_01_dashboard')
   await page.goto('/students')
   await shoot(page, `${prefix}-students`)
   await page.goto(`/attendance?class_id=${classId}&date=${SCHOOL_DAY}`)
@@ -68,6 +70,10 @@ test('documentation screenshots', async ({ page }, testInfo) => {
   await page.goto(studentHref!)
   await riskPanel(page, prefix)
   await shoot(page, `${prefix}-student-risk`, prefix === 'desktop')
+  // Portfolio images: demo label, overall estimate and the per-subject factors in one view.
+  await page.evaluate(() => window.scrollTo(0, 0))
+  await expect(page.getByText('Demo — synthetic data')).toBeInViewport()
+  await shoot(page, prefix === 'desktop' ? 'upwork_02_risk_student' : 'upwork_03_mobile')
 
   // Dark mode examples.
   await page.evaluate(() => window.localStorage.setItem('edupulse-theme', 'dark'))

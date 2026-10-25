@@ -1,5 +1,8 @@
 # EduPulse
 
+[![CI](https://github.com/jaswantraj969/edupulse/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/jaswantraj969/edupulse/actions/workflows/ci.yml)
+[![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
+
 EduPulse is a school management platform — students, teachers, staff, classes, daily
 attendance and grades — with an **explainable early-warning module** that helps staff notice,
 after the first term, which students may be heading towards failing the year.
@@ -7,6 +10,20 @@ after the first term, which students may be heading towards failing the year.
 The early warning is **decision support**: every score comes with its reasons in plain language,
 a visible reminder to review it with the student's context, and an audit trail. It is never an
 automatic sanction.
+
+## At a glance
+
+- **Stack:** FastAPI + SQLAlchemy 2 + PostgreSQL 16 · React 19 + TypeScript + Vite + Tailwind ·
+  scikit-learn · Docker Compose · GitHub Actions (lint, types, tests, e2e with axe, ML
+  reproduction, dependency audit).
+- **Early warning:** logistic regression on the UCI Student Performance data, scored per
+  (student, subject) after Term 1. Held-out test (scored once): **average precision 0.845**
+  [95 % CI 0.740–0.924], ROC AUC 0.953 [0.924–0.977]; at the high-risk threshold recall 0.891
+  [0.792–0.976], precision 0.651 [0.527–0.767]. Cross-validated AP 0.769 ± 0.062 vs 0.220 for a
+  dummy baseline.
+- **Honest finding:** the Term 1 grade carries 99.2 % of the permutation importance; without any
+  grade (failures only) test AP falls to 0.414 [0.290–0.565].
+- **Demo data is synthetic**; the model must be re-validated on local data before real use.
 
 > **What the early warning really is.** The first-term grade carries almost all of the predictive signal (99.2 % of the deployed model's permutation importance on the test set). Without any grade the model is weak: a model using only previous failures reaches a test average precision of 0.414 [95 % CI 0.290, 0.565] and, at the 80 % recall target, flags every student. The tool mainly organises and explains a signal teachers can already see.
 

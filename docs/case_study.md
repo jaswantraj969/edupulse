@@ -169,7 +169,7 @@ Term 1 grades are shown as "insufficient data" rather than guessed at.
 Each score is explained by **reference substitution**: how much the log-odds change if one input
 is replaced by a typical value (the training median). For logistic regression this is exact, and
 it translates directly into sentences such as "Term 1 Mathematics average of 6.5/20 (32 %) is
-below the typical 11/20; this raises the estimate."
+below the typical 11.0/20; this raises the estimate."
 
 ## Guard-rails in the product
 

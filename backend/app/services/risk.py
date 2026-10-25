@@ -241,11 +241,13 @@ def _logit(p: float) -> float:
 def _describe(name: str, feats: SubjectFeatures, reference: float, raises: bool) -> str:
     effect = "raises" if raises else "lowers"
     if name == "g1":
+        # Compare at the precision shown, so a value never reads "below" a reference it rounds to.
         g1 = feats.g1 or 0.0
-        relation = "below" if g1 < reference else "at or above"
+        shown, typical = round(g1, 1), round(reference, 1)
+        relation = "below" if shown < typical else "at or above"
         return (
-            f"Term 1 {feats.subject_name} average of {g1:.1f}/20 ({g1 * 5:.0f}%) is {relation} "
-            f"the typical {reference:.0f}/20; this {effect} the estimate."
+            f"Term 1 {feats.subject_name} average of {shown:.1f}/20 ({g1 * 5:.0f}%) is "
+            f"{relation} the typical {typical:.1f}/20; this {effect} the estimate."
         )
     if feats.failures == 0:
         return f"No previous school-year failures; this {effect} the estimate."
