@@ -1,0 +1,37 @@
+# Secrets and local config
+.env
+.env.*
+!.env.example
+
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+.mypy_cache/
+.ruff_cache/
+.pytest_cache/
+.coverage
+.coverage.*
+coverage.xml
+htmlcov/
+*.egg-info/
+
+# Node / frontend
+node_modules/
+dist/
+frontend/coverage/
+frontend/playwright-report/
+frontend/test-results/
+frontend/blob-report/
+*.tsbuildinfo
+
+# ML raw data (re-downloadable; checksum recorded in ml/data/SOURCE.md)
+ml/data/raw/
+
+# Local databases and editor files
+*.db
+*.sqlite3
+.idea/
+.vscode/
+.DS_Store
+Thumbs.db
