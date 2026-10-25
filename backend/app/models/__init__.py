@@ -10,13 +10,14 @@ from app.models.academic import (
 )
 from app.models.audit import AuditAction, AuditLog
 from app.models.auth import RefreshToken
-from app.models.enums import AssessmentKind, AttendanceStatus, Role, StudentStatus
+from app.models.enums import AccountStatus, AssessmentKind, AttendanceStatus, Role, StudentStatus
 from app.models.people import Staff, Student, Teacher
 from app.models.records import Assessment, AttendanceRecord, Grade
 from app.models.user import User
 
 __all__ = [
     "AcademicYear",
+    "AccountStatus",
     "Assessment",
     "AssessmentKind",
     "AttendanceRecord",

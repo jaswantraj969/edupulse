@@ -5,6 +5,14 @@ import { login } from './helpers'
 // Every main screen, checked with axe (WCAG 2.0/2.1/2.2 A and AA rules) in light and dark mode.
 // The build fails on any "serious" or "critical" violation; others are reported.
 const SCHOOL_DAY = '2025-10-07'
+const PENDING_REQUEST = {
+  id: 999_999,
+  email: 'applicant@example.org',
+  full_name: 'Ada Applicant',
+  status: 'pending',
+  signup_note: 'I teach biology in 10-A',
+  created_at: '2026-10-26T09:00:00Z',
+}
 
 async function firstHref(page: Page, selector: string): Promise<string> {
   const link = page.locator(selector).first()
@@ -58,6 +66,8 @@ for (const theme of ['light', 'dark'] as const) {
   test(`no serious accessibility violations (${theme} mode)`, async ({ page }, testInfo) => {
     test.setTimeout(180_000)
     await page.addInitScript((t) => window.localStorage.setItem('edupulse-theme', t), theme)
+    await page.goto('/signup')
+    await scan(page, `${theme} sign-up`, testInfo)
     await page.goto('/login')
     await scan(page, `${theme} login`, testInfo)
     await login(page)
@@ -65,5 +75,24 @@ for (const theme of ['light', 'dark'] as const) {
       await page.goto(url)
       await scan(page, `${theme} ${label}`, testInfo)
     }
+
+    // Account requests with one (stubbed) request, and its approve dialog. Stubbing keeps the
+    // scan from creating real sign-ups (which are rate-limited per client).
+    await page.route('**/api/v1/account-requests', (route) =>
+      route.fulfill({ json: { total: 1, items: [PENDING_REQUEST] } }),
+    )
+    await page.goto('/account-requests')
+    await scan(page, `${theme} account requests`, testInfo)
+    await page.getByRole('button', { name: `Approve ${PENDING_REQUEST.full_name}` }).click()
+    await expect(page.getByRole('dialog').getByLabel('Teacher profile')).toBeVisible()
+    await scan(page, `${theme} approve dialog`, testInfo)
+    await page.unroute('**/api/v1/account-requests')
+
+    // The waiting page, as the app shows it to an account that is pending approval.
+    await page.route('**/api/v1/auth/me', (route) =>
+      route.fulfill({ json: { ...PENDING_REQUEST, role: null, teacher_id: null, last_login_at: null } }),
+    )
+    await page.goto('/')
+    await scan(page, `${theme} pending approval`, testInfo)
   })
 }

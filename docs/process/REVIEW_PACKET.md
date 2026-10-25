@@ -3811,3 +3811,314 @@ GATE RESULT: PASS
 ```
 
 Screenshots (incl. upwork_01_dashboard.png, upwork_02_risk_student.png, upwork_03_mobile.png) regenerated after reseeding the synthetic demo data: SCREENSHOTS=1, 2 passed.
+
+## F1 — Self sign-up with admin approval, demo logins on the login page
+
+Scope: POST /auth/signup (pending, no role, same response for existing e-mails, 5/hour/client); users.status migration (pending/active/rejected/disabled); 403 account_pending on all data routes; admin account requests (approve as admin or teacher linked to an unlinked profile, reject with reason; audit-logged); public /meta with demo accounts only in demo mode; sign-up, pending and account-requests pages; sidebar badge. Decisions D83–D85. No model, threshold or reported number changed.
+
+### Gate (scripts/gate.sh --e2e)
+
+```text
+$ (cd backend && uv run ruff check .)
+All checks passed!
+[exit 0]
+
+$ (cd backend && uv run ruff format --check .)
+83 files already formatted
+[exit 0]
+
+$ (cd backend && uv run mypy app tests)
+Success: no issues found in 82 source files
+
+[exit 0]
+
+$ (cd backend && uv run pytest --cov --cov-report=term-missing -p no:cacheprovider)
+........................................................................ [ 35%]
+
+........................................................................ [ 70%]
+
+.............................................................            [100%]
+
+=============================== tests coverage ================================
+
+______________ coverage: platform win32, python 3.12.13-final-0 _______________
+
+
+
+Name                            Stmts   Miss Branch BrPart  Cover   Missing
+
+---------------------------------------------------------------------------
+
+app\api\routes\assessments.py     130      1     42      2    98%   63, 177->176
+
+app\api\routes\auth.py             89      0     22      1    99%   216->222
+
+app\api\routes\catalog.py          42      0      4      1    98%   44->46
+
+app\api\routes\classes.py         152      0     40      1    99%   163->167
+
+app\api\routes\dashboard.py        55      0     20      3    96%   51->53, 73->75, 100->99
+
+app\api\routes\meta.py             22      0      6      2    93%   33->37, 37->46
+
+app\api\routes\students.py        133      1     24      1    99%   89
+
+app\core\logging.py                35      1     10      1    96%   28
+
+app\seed.py                       208      3     64      2    98%   181-182, 464
+
+app\services\auth.py               52      1     14      2    95%   42, 100->exit
+
+app\services\csv_io.py            115      1     42      3    97%   55->57, 57->59, 89
+
+app\services\risk.py              153      2     30      3    97%   133, 164->163, 232
+
+---------------------------------------------------------------------------
+
+TOTAL                            2857     10    468     22    99%
+
+
+
+43 files skipped due to complete coverage.
+
+205 passed in 116.99s (0:01:56)
+
+[exit 0]
+
+$ (cd ml && uv run ruff check .)
+All checks passed!
+[exit 0]
+
+$ (cd ml && uv run ruff format --check .)
+18 files already formatted
+[exit 0]
+
+$ (cd ml && uv run mypy edupulse_ml tests)
+Success: no issues found in 16 source files
+
+[exit 0]
+
+$ (cd ml && uv run pytest --cov -p no:cacheprovider)
+........................                                                 [100%]
+
+=============================== tests coverage ================================
+
+______________ coverage: platform win32, python 3.12.13-final-0 _______________
+
+
+
+Name                       Stmts   Miss Branch BrPart  Cover
+
+------------------------------------------------------------
+
+edupulse_ml\__init__.py        1      0      0      0   100%
+
+edupulse_ml\data.py           57      5     18      1    89%
+
+edupulse_ml\evaluate.py       45      1     12      1    96%
+
+edupulse_ml\explain.py        17      0      2      0   100%
+
+edupulse_ml\export.py         14     14      2      0     0%
+
+edupulse_ml\features.py       23      0      0      0   100%
+
+edupulse_ml\guard.py          33      0      8      0   100%
+
+edupulse_ml\report.py         49      0     24      1    99%
+
+edupulse_ml\reproduce.py      31      9     14      0    76%
+
+edupulse_ml\train.py         164      1     22      2    98%
+
+------------------------------------------------------------
+
+TOTAL                        434     30    102      5    92%
+
+24 passed in 119.13s (0:01:59)
+
+[exit 0]
+
+$ (cd frontend && npm run lint)
+
+> edupulse-web@0.1.0 lint
+> eslint . --max-warnings=0
+
+[exit 0]
+
+$ (cd frontend && npm run typecheck)
+
+> edupulse-web@0.1.0 typecheck
+> tsc -b --noEmit
+
+[exit 0]
+
+$ (cd frontend && npm test)
+
+> edupulse-web@0.1.0 test
+> vitest run
+
+
+ RUN  v5.0.5 <repo>/frontend
+
+Not implemented: navigation to another Document
+
+ Test Files  10 passed (10)
+      Tests  52 passed (52)
+   Start at  01:30:17
+   Duration  10.46s (environment 49%, tests 30%, setup 10%, import 9%, transform 1%, worker 1%)
+
+[exit 0]
+
+$ (cd frontend && npm run build)
+
+> edupulse-web@0.1.0 build
+> tsc -b && vite build
+
+vite v8.3.5 building client environment for production...
+transforming...
+✓ 784 modules transformed.
+rendering chunks...
+computing gzip size...
+dist/index.html                                0.69 kB │ gzip:   0.37 kB
+dist/assets/index-DcuIy1l2.css                39.03 kB │ gzip:   7.96 kB
+dist/assets/coerce-DYAjj6p4.js                 0.09 kB │ gzip:   0.10 kB
+dist/assets/queries-BBE9k4Lq.js                0.50 kB │ gzip:   0.26 kB
+dist/assets/classSchema-BcKc5nJS.js            0.57 kB │ gzip:   0.33 kB
+dist/assets/ClassPicker-D6xdWwIB.js            0.66 kB │ gzip:   0.41 kB
+dist/assets/format-DqLuBCE3.js                 0.66 kB │ gzip:   0.44 kB
+dist/assets/schemas-iKQB7wLN.js                0.93 kB │ gzip:   0.47 kB
+dist/assets/PendingPage-cP8FPJY1.js            1.06 kB │ gzip:   0.56 kB
+dist/assets/RecordFormDialog-CHskkNfr.js       1.86 kB │ gzip:   1.00 kB
+dist/assets/ListToolbar-CWkcXTiU.js            2.06 kB │ gzip:   0.94 kB
+dist/assets/AuditLogPage-uYxosuJR.js           2.11 kB │ gzip:   1.06 kB
+dist/assets/useMutation-K7EaVgsQ.js            2.35 kB │ gzip:   0.98 kB
+dist/assets/RiskParts-taabj0gE.js              2.58 kB │ gzip:   0.97 kB
+dist/assets/ClassesPage-C4qfP8l7.js            2.78 kB │ gzip:   1.32 kB
+dist/assets/CsvImportDialog-DfrkF2Ae.js        3.10 kB │ gzip:   1.33 kB
+dist/assets/DataTable-WeUtf17C.js              3.20 kB │ gzip:   1.23 kB
+dist/assets/StudentsListPage-C7ajYYXU.js       3.24 kB │ gzip:   1.47 kB
+dist/assets/LoginPage-D6etKlSR.js              3.39 kB │ gzip:   1.51 kB
+dist/assets/RiskListPage-BtIPFFV6.js           3.73 kB │ gzip:   1.78 kB
+dist/assets/ClassDetailPage-q7517Sob.js        4.62 kB │ gzip:   1.81 kB
+dist/assets/StaffPage-Brj1XqS_.js              4.65 kB │ gzip:   1.96 kB
+dist/assets/SignupPage-B-BSW9jv.js             4.79 kB │ gzip:   1.98 kB
+dist/assets/TeachersPage-BsKQkUOn.js           4.85 kB │ gzip:   2.01 kB
+dist/assets/AttendancePage-CPIwrvs9.js         4.90 kB │ gzip:   2.00 kB
+dist/assets/StudentDetailPage-BR1Ilmi-.js      5.15 kB │ gzip:   1.91 kB
+dist/assets/AccountRequestsPage-DeDcq3A7.js    5.43 kB │ gzip:   2.15 kB
+dist/assets/StudentForm-Cm_ZU9hp.js            5.96 kB │ gzip:   2.22 kB
+dist/assets/RiskTrendCharts-DnwfCjLo.js        6.55 kB │ gzip:   2.75 kB
+dist/assets/GradesPage-DZMSz9Mu.js             7.00 kB │ gzip:   2.70 kB
+dist/assets/StudentRiskPage-DwetGT46.js        7.70 kB │ gzip:   2.83 kB
+dist/assets/jsx-runtime-Wy9s6hX0.js            8.91 kB │ gzip:   3.39 kB
+dist/assets/DashboardPage-BjtQtPlU.js         26.86 kB │ gzip:   9.06 kB
+dist/assets/ui-C1HAQxY2.js                    98.11 kB │ gzip:  32.51 kB
+dist/assets/Field-BalBjj_T.js                126.01 kB │ gzip:  37.99 kB
+dist/assets/index-uzASl7uZ.js                264.03 kB │ gzip:  82.31 kB
+dist/assets/useElementWidth-B0dIweBg.js      347.70 kB │ gzip: 101.49 kB
+
+✓ built in 697ms
+[exit 0]
+
+$ (cd frontend && npx playwright test --reporter=list)
+
+Running 12 tests using 1 worker
+
+(node:12164) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+[axe] light sign-up: 34 rules passed; violations: none
+[axe] light login: 31 rules passed; violations: none
+[axe] light dashboard: 35 rules passed; violations: none
+[axe] light students: 38 rules passed; violations: none
+[axe] light student detail: 42 rules passed; violations: none
+[axe] light student form: 35 rules passed; violations: none
+[axe] light teachers: 39 rules passed; violations: none
+[axe] light staff: 39 rules passed; violations: none
+[axe] light classes: 36 rules passed; violations: none
+[axe] light class detail: 34 rules passed; violations: none
+[axe] light attendance: 36 rules passed; violations: none
+[axe] light grades: 36 rules passed; violations: none
+[axe] light early warning: 42 rules passed; violations: none
+[axe] light student risk: 39 rules passed; violations: none
+[axe] light audit log: 38 rules passed; violations: none
+[axe] light account requests: 35 rules passed; violations: none
+[axe] light approve dialog: 44 rules passed; violations: none
+[axe] light pending approval: 23 rules passed; violations: none
+  ok  1 [mobile-375] › e2e\a11y.spec.ts:66:3 › no serious accessibility violations (light mode) (41.7s)
+[axe] dark sign-up: 34 rules passed; violations: none
+[axe] dark login: 34 rules passed; violations: none
+[axe] dark dashboard: 35 rules passed; violations: none
+[axe] dark students: 38 rules passed; violations: none
+[axe] dark student detail: 42 rules passed; violations: none
+[axe] dark student form: 35 rules passed; violations: none
+[axe] dark teachers: 39 rules passed; violations: none
+[axe] dark staff: 39 rules passed; violations: none
+[axe] dark classes: 36 rules passed; violations: none
+[axe] dark class detail: 34 rules passed; violations: none
+[axe] dark attendance: 36 rules passed; violations: none
+[axe] dark grades: 36 rules passed; violations: none
+[axe] dark early warning: 42 rules passed; violations: none
+[axe] dark student risk: 39 rules passed; violations: none
+[axe] dark audit log: 38 rules passed; violations: none
+[axe] dark account requests: 35 rules passed; violations: none
+[axe] dark approve dialog: 44 rules passed; violations: none
+[axe] dark pending approval: 23 rules passed; violations: none
+  ok  2 [mobile-375] › e2e\a11y.spec.ts:66:3 › no serious accessibility violations (dark mode) (40.0s)
+  ok  3 [mobile-375] › e2e\core-flow.spec.ts:8:1 › login → add student → mark attendance → enter grade (5.3s)
+  ok  4 [mobile-375] › e2e\early-warning.spec.ts:4:1 › teacher reviews early-warning scores; the views are audited (7.3s)
+  -   5 [mobile-375] › e2e\screenshots.spec.ts:38:1 › documentation screenshots
+  ok  6 [mobile-375] › e2e\signup.spec.ts:34:1 › sign up → pending page → admin approves as teacher → teacher sees only their classes (8.1s)
+(node:22956) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+[axe] light sign-up: 34 rules passed; violations: none
+[axe] light login: 34 rules passed; violations: none
+[axe] light dashboard: 33 rules passed; violations: none
+[axe] light students: 37 rules passed; violations: none
+[axe] light student detail: 40 rules passed; violations: none
+[axe] light student form: 33 rules passed; violations: none
+[axe] light teachers: 38 rules passed; violations: none
+[axe] light staff: 38 rules passed; violations: none
+[axe] light classes: 34 rules passed; violations: none
+[axe] light class detail: 32 rules passed; violations: none
+[axe] light attendance: 34 rules passed; violations: none
+[axe] light grades: 34 rules passed; violations: none
+[axe] light early warning: 41 rules passed; violations: none
+[axe] light student risk: 37 rules passed; violations: none
+[axe] light audit log: 37 rules passed; violations: none
+[axe] light account requests: 34 rules passed; violations: none
+[axe] light approve dialog: 43 rules passed; violations: none
+[axe] light pending approval: 23 rules passed; violations: none
+  ok  7 [desktop-1440] › e2e\a11y.spec.ts:66:3 › no serious accessibility violations (light mode) (41.5s)
+[axe] dark sign-up: 34 rules passed; violations: none
+[axe] dark login: 34 rules passed; violations: none
+[axe] dark dashboard: 33 rules passed; violations: none
+[axe] dark students: 37 rules passed; violations: none
+[axe] dark student detail: 40 rules passed; violations: none
+[axe] dark student form: 33 rules passed; violations: none
+[axe] dark teachers: 38 rules passed; violations: none
+[axe] dark staff: 38 rules passed; violations: none
+[axe] dark classes: 34 rules passed; violations: none
+[axe] dark class detail: 32 rules passed; violations: none
+[axe] dark attendance: 34 rules passed; violations: none
+[axe] dark grades: 34 rules passed; violations: none
+[axe] dark early warning: 41 rules passed; violations: none
+[axe] dark student risk: 37 rules passed; violations: none
+[axe] dark audit log: 37 rules passed; violations: none
+[axe] dark account requests: 34 rules passed; violations: none
+[axe] dark approve dialog: 43 rules passed; violations: none
+[axe] dark pending approval: 23 rules passed; violations: none
+  ok  8 [desktop-1440] › e2e\a11y.spec.ts:66:3 › no serious accessibility violations (dark mode) (40.2s)
+  ok  9 [desktop-1440] › e2e\core-flow.spec.ts:8:1 › login → add student → mark attendance → enter grade (5.7s)
+  ok 10 [desktop-1440] › e2e\early-warning.spec.ts:4:1 › teacher reviews early-warning scores; the views are audited (7.1s)
+  -  11 [desktop-1440] › e2e\screenshots.spec.ts:38:1 › documentation screenshots
+  ok 12 [desktop-1440] › e2e\signup.spec.ts:34:1 › sign up → pending page → admin approves as teacher → teacher sees only their classes (7.1s)
+
+  2 skipped
+  10 passed (3.5m)
+[exit 0]
+
+GATE RESULT: PASS
+```
+
+Migration checked on SQLite (tests/test_migrations.py) and on a Postgres copy of the demo database: upgrade (31 existing users -> active, roles kept), alembic check (no drift), downgrade base, upgrade. After the gate only frontend/e2e/screenshots.spec.ts changed: it now replaces the demo password in the /meta response with a placeholder so screenshots never show the real one (ESLint re-run: OK). Screenshots regenerated after reseeding the synthetic demo data (SCREENSHOTS=1, 2 passed).

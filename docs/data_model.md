@@ -24,7 +24,7 @@ erDiagram
 
 | Table | Purpose | Key constraints |
 |-------|---------|-----------------|
-| `users` | Login accounts (`admin`, `teacher`) | unique e-mail; teacher accounts must link to a `teachers` row (CHECK) |
+| `users` | Login accounts (`admin`, `teacher`); `status` pending / active / rejected / disabled; sign-up note and review decision | unique e-mail; an active account has a role and an active teacher account links to a `teachers` row (CHECK); pending accounts have no role |
 | `teachers`, `staff` | Employee profiles | unique employee number and e-mail |
 | `students` | Student profiles | unique student number; `prior_failures` 0–3 (CHECK); status enum |
 | `academic_years`, `terms` | Calendar | start < end (CHECK); term number unique per year |

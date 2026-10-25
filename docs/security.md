@@ -6,7 +6,7 @@
   upper-case, lower-case and a digit. Unknown e-mails are verified against a dummy hash so
   response times do not reveal which accounts exist.
 - **Access tokens:** JWT (HS256), 15 minutes, kept in browser memory only. The user's role and
-  active flag are re-read from the database on every request.
+  account status are re-read from the database on every request.
 - **Refresh tokens:** random 64-character strings stored only as SHA-256 hashes, rotated on every
   use, revocable (logout). Re-using a rotated token revokes all of that user's sessions. They are
   sent **only** as an `HttpOnly; Secure; SameSite=Strict` cookie scoped to `/api/v1/auth` — never
@@ -35,7 +35,32 @@
   forging it gave every attempt a fresh per-client key (25 failed logins with forged headers,
   no 429). Tests: `backend/tests/test_proxy_headers.py`. Outside compose, set
   `EDUPULSE_TRUSTED_PROXY` to the address of your own reverse proxy (default `127.0.0.1`).
-- Registration is admin-only; there is no self sign-up.
+- **Self sign-up requires administrator approval.** `POST /api/v1/auth/signup` creates an
+  account with status `pending` and **no role**. Why approval rather than open registration:
+  every account in EduPulse sees personal data about children (attendance, grades, risk
+  estimates), and a teacher's access is defined by which teacher profile the account is linked
+  to. Only an administrator can know that the person really is that teacher, so a sign-up can
+  never grant access by itself.
+  - A pending account can sign in, and `/auth/me` reports its status, but every data route
+    (students, classes, attendance, grades, risk scores, exports, dashboard, admin pages)
+    answers `403 account_pending`. The check sits in the shared `CurrentUser` dependency, so new
+    routes inherit it. The UI shows only a *Waiting for approval* page.
+  - An administrator approves (as `admin`, or as `teacher` linked to an existing teacher profile
+    that has no account yet — the account then sees exactly that teacher's classes) or rejects
+    (optional reason). Both are written to the audit log. Rejected and disabled accounts cannot
+    sign in; they get the same error as a wrong password, and rejection revokes their sessions.
+  - **No account discovery:** the sign-up response is identical whether or not the e-mail
+    already has an account, and an existing account is never changed; the password is hashed
+    either way so response times match. Validation errors only describe the submitted input.
+  - **Rate limit:** 5 sign-up requests per client per hour (every request counts) → HTTP 429
+    with `Retry-After`; same per-process caveat as the login limit.
+  - Admins can still create accounts directly (`POST /api/v1/auth/register`).
+- **Demo accounts on the login page.** The public `GET /api/v1/meta` endpoint returns the demo
+  administrator and one demo teacher **with the demo password** only when `EDUPULSE_DEMO_MODE`
+  is true and `EDUPULSE_DEMO_PASSWORD` is set for the API; otherwise `demo_accounts` is always
+  empty (tested both ways). This is deliberate for a demo of synthetic data — anyone who can
+  open the login page can then sign in as the demo administrator — so a real installation must
+  run with demo mode off and no demo password.
 
 ## Authorisation
 

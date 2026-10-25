@@ -10,6 +10,15 @@ class Role(StrEnum):
     TEACHER = "teacher"
 
 
+class AccountStatus(StrEnum):
+    """Self sign-ups start as pending; only an administrator can make an account active."""
+
+    PENDING = "pending"
+    ACTIVE = "active"
+    REJECTED = "rejected"
+    DISABLED = "disabled"
+
+
 class StudentStatus(StrEnum):
     ACTIVE = "active"
     INACTIVE = "inactive"

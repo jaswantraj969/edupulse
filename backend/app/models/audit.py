@@ -1,4 +1,4 @@
-"""Append-only audit log for access to early-warning risk scores."""
+"""Append-only audit log: access to early-warning risk scores and account approvals."""
 
 from __future__ import annotations
 
@@ -16,6 +16,8 @@ class AuditAction(StrEnum):
     RISK_VIEW_CLASS = "risk.view_class"
     RISK_VIEW_STUDENT = "risk.view_student"
     RISK_EXPORT_CLASS = "risk.export_class"
+    ACCOUNT_APPROVE = "account.approve"
+    ACCOUNT_REJECT = "account.reject"
 
 
 class AuditLog(Base):

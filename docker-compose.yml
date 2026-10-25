@@ -25,6 +25,7 @@ services:
       EDUPULSE_JWT_SECRET: ${EDUPULSE_JWT_SECRET:?set EDUPULSE_JWT_SECRET in .env}
       EDUPULSE_CORS_ORIGINS: ${EDUPULSE_CORS_ORIGINS:-http://localhost:8088}
       EDUPULSE_DEMO_PASSWORD: ${EDUPULSE_DEMO_PASSWORD:-}
+      EDUPULSE_DEMO_MODE: ${EDUPULSE_DEMO_MODE:-true}
       # Only the web container (nginx) may set X-Forwarded-For; see docs/security.md.
       EDUPULSE_TRUSTED_PROXY: ${EDUPULSE_PROXY_IP:-172.30.57.10}
     depends_on:

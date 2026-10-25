@@ -18,7 +18,7 @@ its output recorded in `REVIEW_PACKET.md`; it is not a claim of external verific
 
 ## Resume point
 
-T-FINAL: rounding-consistent factor text and dashboard demo label (D82); release v1.1.0; repository made public by the owner's authorisation.
+F1 done: self sign-up with admin approval and demo logins on the login page (D83–D85); release v1.2.0. Repository is public.
 
 ## Decisions
 
@@ -106,6 +106,9 @@ T-FINAL: rounding-consistent factor text and dashboard demo label (D82); release
 | D80 | T-R3 | Score each (student, subject) pair: g1 = weighted Term 1 percentage in that subject ÷ 5, same model and failures value; student band/probability = highest-risk subject; subjects taught in the class without Term 1 grades are insufficient_data for that subject only; class list shows and sorts by the top subject; student panel lists every subject; CSV one row per pair. Cross-subject average removed. Model unchanged (v1.1.0), test set not re-scored. | A UCI row is one student in one course; the average narrowed the spread and could hide one failing subject. |
 | D81 | T-R3 | Compose network with a fixed subnet; nginx (web) pinned to 172.30.57.10 outside the dynamic ip_range; uvicorn --forwarded-allow-ips set to that address only (entrypoint refuses '*'); nginx sets X-Forwarded-For to $remote_addr. | With '*' a client could forge X-Forwarded-For and get a fresh per-client rate-limit key per attempt (reproduced live). |
 | D82 | T-FINAL | Factor text compares the Term 1 subject average and the reference at the displayed precision (one decimal each); "below" only if the rounded value is lower. The dashboard shows a "Demo — synthetic data" label when `demo_mode` is on (new `demo_mode` field in the dashboard response). No model, threshold or reported number changed. | A value shown as 11.0 read "below the typical 11/20"; portfolio screenshots must carry the demo label. |
+| D83 | F1 | Self sign-up creates a `pending` account with no role (new `users.status`: pending / active / rejected / disabled, replacing `is_active`; migration keeps existing users active). Pending accounts can sign in but the shared `CurrentUser` dependency answers 403 `account_pending` on every data route; only `/auth/me`, refresh and logout work. Admins approve (admin, or teacher linked to an unlinked teacher profile) or reject; both audit-logged. | Every account sees children's data and a teacher's scope comes from the linked profile, which only an administrator can vouch for. |
+| D84 | F1 | Sign-up gives the same 202 response (and similar timing) whether or not the e-mail exists, never changes an existing account, and is rate-limited to 5 requests per client per hour. Rejected/disabled accounts get the wrong-password error. | No account enumeration; abuse resistance consistent with the login limiter. |
+| D85 | F1 | Public `GET /api/v1/meta` exposes `demo_mode` and, only in demo mode with `EDUPULSE_DEMO_PASSWORD` set, the demo admin and one demo teacher (with a homeroom class) including the password, so the login page can offer "Use this account". Compose now passes `EDUPULSE_DEMO_MODE`. | Lets visitors try the synthetic demo; documented as unsuitable for real data. |
 
 ## Deviations and limitations
 

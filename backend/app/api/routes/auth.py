@@ -10,13 +10,26 @@ from fastapi import APIRouter, Cookie, Depends, Request, Response, status
 from fastapi.security import OAuth2PasswordRequestForm
 from sqlalchemy import select
 
-from app.api.deps import AdminUser, CurrentUser, DbDep, SettingsDep, get_login_limiter
+from app.api.deps import (
+    AdminUser,
+    DbDep,
+    SettingsDep,
+    SignedInUser,
+    get_login_limiter,
+    get_signup_limiter,
+)
 from app.core.config import Settings
 from app.core.errors import ERROR_RESPONSES, AppError, conflict
 from app.core.passwords import hash_password
-from app.core.rate_limit import LoginRateLimiter
-from app.models import Role, Teacher, User
-from app.schemas.auth import TokenResponse, UserCreate, UserRead
+from app.core.rate_limit import LoginRateLimiter, SlidingWindowLimiter
+from app.models import AccountStatus, Role, Teacher, User
+from app.schemas.auth import (
+    SignupAccepted,
+    SignupRequest,
+    TokenResponse,
+    UserCreate,
+    UserRead,
+)
 from app.services import auth as auth_service
 
 router = APIRouter(prefix="/auth", tags=["auth"], responses=ERROR_RESPONSES)
@@ -135,8 +148,60 @@ def logout(
 
 
 @router.get("/me", response_model=UserRead, summary="Current user")
-def me(user: CurrentUser) -> User:
+def me(user: SignedInUser) -> User:
+    """Also answers for accounts pending approval, so the app can show their status."""
     return user
+
+
+SIGNUP_ACCEPTED = (
+    "Thank you. If the request can be accepted, an administrator will review it; you can sign in "
+    "to see its status."
+)
+
+
+@router.post(
+    "/signup",
+    response_model=SignupAccepted,
+    status_code=status.HTTP_202_ACCEPTED,
+    summary="Request an account (self sign-up)",
+)
+def signup(
+    payload: SignupRequest,
+    request: Request,
+    db: DbDep,
+    limiter: Annotated[SlidingWindowLimiter, Depends(get_signup_limiter)],
+) -> SignupAccepted:
+    """Creates an account with status ``pending`` and no role: it can sign in, but every data
+    route answers 403 ``account_pending`` until an administrator approves it.
+
+    The response is the same whether or not the e-mail already has an account, and takes about
+    as long, so the endpoint cannot be used to discover accounts. Requests are rate-limited per
+    client (HTTP 429 with ``Retry-After``).
+    """
+    client = request.client.host if request.client else "unknown"
+    wait = limiter.retry_after(client)
+    if wait:
+        raise AppError(
+            status.HTTP_429_TOO_MANY_REQUESTS,
+            "Too many requests. Try again later.",
+            headers={"Retry-After": str(wait)},
+        )
+    limiter.hit(client)
+    if db.scalar(select(User.id).where(User.email == payload.email)) is not None:
+        auth_service.burn_password_hash(payload.password)
+    else:
+        db.add(
+            User(
+                email=payload.email,
+                full_name=payload.full_name,
+                hashed_password=hash_password(payload.password),
+                role=None,
+                status=AccountStatus.PENDING,
+                signup_note=payload.note or None,
+            )
+        )
+        db.commit()
+    return SignupAccepted(message=SIGNUP_ACCEPTED)
 
 
 @router.post(

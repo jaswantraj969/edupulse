@@ -36,8 +36,10 @@ automatic sanction.
 | ![Dashboard](docs/screenshots/desktop-dashboard.png) | ![Dashboard on mobile](docs/screenshots/mobile-dashboard.png) |
 | ![Early-warning list](docs/screenshots/desktop-early-warning.png) | ![Student risk panel, dark mode](docs/screenshots/mobile-student-risk-dark.png) |
 | ![Student risk panel](docs/screenshots/desktop-student-risk.png) | ![Attendance marking](docs/screenshots/mobile-attendance.png) |
+| ![Sign-in page with the demo accounts box](docs/screenshots/desktop-login.png) | ![Account request (self sign-up) on mobile](docs/screenshots/mobile-signup.png) |
+| ![Account requests awaiting approval](docs/screenshots/desktop-account-requests.png) | ![Sign-in page on mobile](docs/screenshots/mobile-login.png) |
 
-More in [`docs/screenshots/`](docs/screenshots/) (login, students, grades, dark mode).
+More in [`docs/screenshots/`](docs/screenshots/) (students, grades, dark mode). The screenshots replace the real demo password with a placeholder.
 
 ## Features
 
@@ -55,8 +57,11 @@ More in [`docs/screenshots/`](docs/screenshots/) (login, students, grades, dark 
   failures.
 - **Roles:** administrators see everything; teachers see only their own classes and students
   and can change grades only for subjects they teach.
+- **Accounts:** self sign-up with administrator approval (pending accounts see no data);
+  approvals and rejections are audit-logged.
 - **Security:** argon2 passwords, short-lived JWT access tokens + rotating httpOnly refresh
-  cookie, login rate limiting, audit log for risk scores, strict security headers.
+  cookie, login and sign-up rate limiting, audit log for risk scores and account decisions,
+  strict security headers.
 - **Responsive and accessible:** 360 px to desktop, keyboard navigable, light/dark mode,
   WCAG AA contrast (checked with axe on every screen).
 
@@ -77,15 +82,24 @@ docker compose exec api python -m app.seed      # load SYNTHETIC demo data
   `/api/v1/redoc`)
 - Health: `/api/v1/health` (liveness), `/api/v1/ready` (database + model)
 
-### Demo logins (synthetic data, demo only)
+### Sign in: create an account or use a demo account
+
+- **Use a demo account.** In demo mode the login page shows a *Demo accounts* box with an
+  administrator and a teacher; *Use this account* fills in the form. Their password is the
+  `EDUPULSE_DEMO_PASSWORD` you set in `.env`.
+- **Create an account.** *Create account* on the login page sends a request. The new account
+  can sign in at once but only sees a *Waiting for approval* page until an administrator
+  approves it under **Account requests** — as a teacher (linked to a teacher profile, so it
+  sees exactly that teacher's classes) or as an administrator — or rejects it.
 
 | Role | E-mail | Password |
 |---|---|---|
 | Administrator | `admin@edupulse.example` | the `EDUPULSE_DEMO_PASSWORD` you set in `.env` |
-| Teacher | any teacher's e-mail from the Teachers page, e.g. `sheila.andres@edupulse.example` (TCH001) | same |
+| Teacher | shown on the login page; any teacher's e-mail from the Teachers page also works, e.g. `sheila.andres@edupulse.example` (TCH001) | same |
 
 These accounts exist only in the demo database created by the seed script. Do not reuse the
-demo password anywhere else.
+demo password anywhere else. For a real installation set `EDUPULSE_DEMO_MODE=false` and leave
+`EDUPULSE_DEMO_PASSWORD` unset for the API: the login page then never shows any account.
 
 ## Architecture
 

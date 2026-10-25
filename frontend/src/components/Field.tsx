@@ -1,4 +1,4 @@
-import { useId, type InputHTMLAttributes, type ReactNode, type SelectHTMLAttributes } from 'react'
+import { useId, type InputHTMLAttributes, type ReactNode, type SelectHTMLAttributes, type TextareaHTMLAttributes } from 'react'
 import type { FieldError, UseFormRegisterReturn } from 'react-hook-form'
 
 interface FieldShellProps {
@@ -53,6 +53,32 @@ export function TextField({ label, registration, error, hint, required, ...rest 
       {({ id, describedBy, invalid }) => (
         <input
           id={id}
+          className="input"
+          aria-invalid={invalid || undefined}
+          aria-describedby={describedBy}
+          aria-required={required || undefined}
+          {...registration}
+          {...rest}
+        />
+      )}
+    </FieldShell>
+  )
+}
+
+interface TextAreaFieldProps extends Omit<TextareaHTMLAttributes<HTMLTextAreaElement>, 'id'> {
+  label: string
+  registration: UseFormRegisterReturn
+  error?: FieldError
+  hint?: string
+}
+
+export function TextAreaField({ label, registration, error, hint, required, rows = 3, ...rest }: TextAreaFieldProps) {
+  return (
+    <FieldShell label={label} error={error} hint={hint} required={required}>
+      {({ id, describedBy, invalid }) => (
+        <textarea
+          id={id}
+          rows={rows}
           className="input"
           aria-invalid={invalid || undefined}
           aria-describedby={describedBy}

@@ -1,6 +1,6 @@
 import { fileURLToPath } from 'node:url'
 import { expect, test, type Page } from '@playwright/test'
-import { login } from './helpers'
+import { demoPassword, login } from './helpers'
 
 // Documentation screenshots (synthetic demo data). Run with:
 //   SCREENSHOTS=1 E2E_PASSWORD=... npx playwright test e2e/screenshots.spec.ts
@@ -40,8 +40,21 @@ test('documentation screenshots', async ({ page }, testInfo) => {
   const prefix = testInfo.project.name.startsWith('mobile') ? 'mobile' : 'desktop'
   await page.addInitScript(() => window.localStorage.setItem('edupulse-theme', 'light'))
 
+  // The repository is public: never photograph the real demo password. The page gets the real
+  // /meta response with the password replaced by a placeholder.
+  await page.route('**/api/v1/meta', async (route) => {
+    const response = await route.fetch()
+    const meta = (await response.json()) as { demo_accounts: { password: string }[] }
+    for (const account of meta.demo_accounts) account.password = '<EDUPULSE_DEMO_PASSWORD>'
+    await route.fulfill({ response, json: meta })
+  })
   await page.goto('/login')
-  await shoot(page, `${prefix}-login`)
+  await expect(page.getByRole('region', { name: 'Demo accounts' })).toBeVisible()
+  await expect(page.getByText(demoPassword())).toHaveCount(0)
+  await shoot(page, `${prefix}-login`, prefix === 'mobile')
+  await page.goto('/signup')
+  await page.getByLabel(/^Password/).fill('Example-pass')
+  await shoot(page, `${prefix}-signup`, prefix === 'mobile')
   await login(page)
 
   // Class 10-A and its highest-risk student, looked up through the UI.
@@ -74,6 +87,19 @@ test('documentation screenshots', async ({ page }, testInfo) => {
   await page.evaluate(() => window.scrollTo(0, 0))
   await expect(page.getByText('Demo — synthetic data')).toBeInViewport()
   await shoot(page, prefix === 'desktop' ? 'upwork_02_risk_student' : 'upwork_03_mobile')
+
+  // Account requests, with one synthetic request (stubbed so no real sign-up is created).
+  await page.route('**/api/v1/account-requests', (route) =>
+    route.fulfill({
+      json: {
+        total: 1,
+        items: [{ id: 999_999, email: 'ada.applicant@example.org', full_name: 'Ada Applicant', status: 'pending', signup_note: 'I teach biology in 10-A', created_at: '2026-10-26T09:00:00Z' }],
+      },
+    }),
+  )
+  await page.goto('/account-requests')
+  await shoot(page, `${prefix}-account-requests`)
+  await page.unroute('**/api/v1/account-requests')
 
   // Dark mode examples.
   await page.evaluate(() => window.localStorage.setItem('edupulse-theme', 'dark'))

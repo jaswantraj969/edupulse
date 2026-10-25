@@ -4,6 +4,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.api.routes import (
+    accounts,
     assessments,
     attendance,
     audit,
@@ -12,6 +13,7 @@ from app.api.routes import (
     classes,
     dashboard,
     health,
+    meta,
     risk,
     staff,
     students,
@@ -21,7 +23,7 @@ from app.core.config import Settings, get_settings
 from app.core.errors import install_error_handlers
 from app.core.logging import configure_logging
 from app.core.middleware import RequestContextMiddleware, SecurityHeadersMiddleware
-from app.core.rate_limit import LoginRateLimiter
+from app.core.rate_limit import LoginRateLimiter, SlidingWindowLimiter
 
 API_PREFIX = "/api/v1"
 
@@ -42,6 +44,9 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.state.login_limiter = LoginRateLimiter(
         settings.login_rate_limit_attempts, settings.login_rate_limit_window_seconds
     )
+    app.state.signup_limiter = SlidingWindowLimiter(
+        settings.signup_rate_limit_attempts, settings.signup_rate_limit_window_seconds
+    )
     app.add_middleware(
         CORSMiddleware,
         allow_origins=settings.cors_origins,
@@ -57,6 +62,8 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     routers = (
         health.router,
         auth.router,
+        accounts.router,
+        meta.router,
         dashboard.router,
         students.router,
         teachers.router,

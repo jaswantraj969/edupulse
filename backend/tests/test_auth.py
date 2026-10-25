@@ -10,7 +10,7 @@ from sqlalchemy.orm import Session
 from app.api.routes.auth import REFRESH_COOKIE
 from app.core.config import Settings
 from app.core.security import utcnow
-from app.models import RefreshToken, User
+from app.models import AccountStatus, RefreshToken, User
 from tests.conftest import School
 from tests.factories import PASSWORD
 
@@ -71,14 +71,17 @@ def test_login_failures_are_generic(client: TestClient, school: School) -> None:
         assert response.json()["error"]["message"] == "Incorrect e-mail or password"
 
 
-def test_inactive_user_cannot_log_in_and_tokens_stop_working(
+def test_disabled_user_cannot_log_in_and_tokens_stop_working(
     client: TestClient, school: School, db: Session
 ) -> None:
     headers = school.headers(school.teacher_a)
-    db.execute(update(User).where(User.id == school.teacher_a.id).values(is_active=False))
+    db.execute(
+        update(User).where(User.id == school.teacher_a.id).values(status=AccountStatus.DISABLED)
+    )
     db.commit()
     response = client.post(LOGIN, data={"username": school.teacher_a.email, "password": PASSWORD})
     assert response.status_code == 401
+    assert response.json()["error"]["message"] == "Incorrect e-mail or password"
     assert client.get(ME, headers=headers).status_code == 401
 
 

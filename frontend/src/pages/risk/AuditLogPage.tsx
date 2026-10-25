@@ -12,6 +12,8 @@ const ACTIONS: Record<AuditLogEntry['action'], string> = {
   'risk.view_class': 'Viewed class risk list',
   'risk.view_student': 'Viewed student risk panel',
   'risk.export_class': 'Exported class risk list',
+  'account.approve': 'Approved account request',
+  'account.reject': 'Rejected account request',
 }
 
 export default function AuditLogPage() {

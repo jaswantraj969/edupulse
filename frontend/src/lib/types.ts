@@ -1,6 +1,7 @@
 // Types mirroring the backend's Pydantic schemas (backend/app/schemas).
 
 export type Role = 'admin' | 'teacher'
+export type AccountStatus = 'pending' | 'active' | 'rejected' | 'disabled'
 export type StudentStatus = 'active' | 'inactive' | 'graduated' | 'withdrawn'
 export type AttendanceStatus = 'present' | 'absent' | 'late' | 'excused'
 export type AssessmentKind = 'quiz' | 'test' | 'exam' | 'assignment' | 'project'
@@ -25,10 +26,39 @@ export interface User {
   id: number
   email: string
   full_name: string
-  role: Role
-  is_active: boolean
+  /** null while the account is waiting for approval */
+  role: Role | null
+  status: AccountStatus
   teacher_id: number | null
   last_login_at: string | null
+}
+
+export interface DemoAccount {
+  role: Role
+  label: string
+  email: string
+  password: string
+}
+
+export interface Meta {
+  demo_mode: boolean
+  demo_accounts: DemoAccount[]
+}
+
+export interface AccountRequest {
+  id: number
+  email: string
+  full_name: string
+  status: AccountStatus
+  signup_note: string | null
+  created_at: string
+}
+
+export interface UnlinkedTeacher {
+  id: number
+  employee_no: string
+  full_name: string
+  email: string
 }
 
 export interface TokenResponse {
@@ -328,7 +358,7 @@ export interface AuditLogEntry {
   created_at: string
   user_id: number | null
   user_email: string
-  action: 'risk.view_class' | 'risk.view_student' | 'risk.export_class'
+  action: 'risk.view_class' | 'risk.view_student' | 'risk.export_class' | 'account.approve' | 'account.reject'
   target_type: string
   target_id: number
   detail: string | null

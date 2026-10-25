@@ -1,12 +1,14 @@
 import { zodResolver } from '@hookform/resolvers/zod'
+import { useQuery } from '@tanstack/react-query'
 import { useState } from 'react'
 import { useForm } from 'react-hook-form'
-import { Navigate, useLocation, useNavigate } from 'react-router'
+import { Link, Navigate, useLocation, useNavigate } from 'react-router'
 import { z } from 'zod'
 import { FormError, TextField } from '@/components/Field'
 import { Button } from '@/components/ui'
-import { ApiError, errorMessage } from '@/lib/api'
+import { ApiError, api, errorMessage } from '@/lib/api'
 import { useAuth } from '@/lib/auth'
+import type { DemoAccount, Meta } from '@/lib/types'
 
 const schema = z.object({
   email: z.string().trim().min(1, 'Enter your e-mail address').pipe(z.email('Enter a valid e-mail address')),
@@ -14,14 +16,45 @@ const schema = z.object({
 })
 type Values = z.infer<typeof schema>
 
+/** Demo installations only: the server lists these accounts only while demo_mode is on. */
+function DemoAccounts({ accounts, onUse }: { accounts: DemoAccount[]; onUse: (account: DemoAccount) => void }) {
+  return (
+    <section aria-labelledby="demo-accounts-h" className="mt-6 rounded-xl border border-amber-300 bg-amber-50 p-4 text-sm text-amber-950 dark:border-amber-700 dark:bg-amber-950/60 dark:text-amber-100">
+      <h2 id="demo-accounts-h" className="font-semibold">
+        Demo accounts
+      </h2>
+      <p className="mt-1 text-xs">All people and records in this installation are synthetic.</p>
+      <ul className="mt-3 flex flex-col gap-3">
+        {accounts.map((account) => (
+          <li key={account.email} className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+            <div className="min-w-0">
+              <p className="font-medium">{account.label}</p>
+              <p className="truncate font-mono text-xs">{account.email}</p>
+              <p className="font-mono text-xs">
+                <span className="font-sans">Password:</span> {account.password}
+              </p>
+            </div>
+            <Button variant="secondary" onClick={() => onUse(account)} aria-label={`Use this account: ${account.label}`}>
+              Use this account
+            </Button>
+          </li>
+        ))}
+      </ul>
+    </section>
+  )
+}
+
 export default function LoginPage() {
   const { status, login } = useAuth()
   const navigate = useNavigate()
   const location = useLocation()
   const [serverError, setServerError] = useState<string | null>(null)
+  const meta = useQuery({ queryKey: ['meta'], queryFn: () => api.get<Meta>('/meta'), retry: false, staleTime: 60_000 })
   const {
     register,
     handleSubmit,
+    setValue,
+    setFocus,
     formState: { errors, isSubmitting },
   } = useForm<Values>({ resolver: zodResolver(schema), defaultValues: { email: '', password: '' } })
 
@@ -41,6 +74,13 @@ export default function LoginPage() {
       )
     }
   }
+
+  const fillAccount = (account: DemoAccount) => {
+    setValue('email', account.email, { shouldValidate: true })
+    setValue('password', account.password, { shouldValidate: true })
+    setFocus('password')
+  }
+  const demoAccounts = meta.data?.demo_mode ? meta.data.demo_accounts : []
 
   return (
     <main className="flex min-h-dvh items-center justify-center px-4 py-10">
@@ -69,10 +109,13 @@ export default function LoginPage() {
             Sign in
           </Button>
         </form>
-        <p className="mt-6 text-center text-xs text-slate-600 dark:text-slate-400">
-          Demo installation: all people and records are synthetic. Demo accounts use the{' '}
-          <span className="font-mono">@edupulse.example</span> domain.
+        <p className="mt-6 text-center text-sm">
+          New here?{' '}
+          <Link to="/signup" className="font-medium text-indigo-700 hover:underline dark:text-indigo-300">
+            Create account
+          </Link>
         </p>
+        {demoAccounts.length > 0 && <DemoAccounts accounts={demoAccounts} onUse={fillAccount} />}
       </div>
     </main>
   )

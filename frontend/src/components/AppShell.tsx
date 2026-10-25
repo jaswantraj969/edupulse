@@ -1,5 +1,7 @@
-import { useState } from 'react'
+import { useQuery } from '@tanstack/react-query'
+import { useId, useState } from 'react'
 import { NavLink, Outlet, useLocation } from 'react-router'
+import { api } from '@/lib/api'
 import { useAuth, useUser } from '@/lib/auth'
 import { useTheme } from '@/lib/theme'
 import { Dialog } from './Dialog'
@@ -23,6 +25,7 @@ const NAV_ITEMS: NavItem[] = [
   { to: '/teachers', label: 'Teachers', icon: 'teachers' },
   { to: '/staff', label: 'Staff', icon: 'staff', adminOnly: true },
   { to: '/audit', label: 'Audit log', icon: 'audit', adminOnly: true },
+  { to: '/account-requests', label: 'Account requests', icon: 'requests', adminOnly: true },
 ]
 
 function navClass({ isActive }: { isActive: boolean }): string {
@@ -31,6 +34,50 @@ function navClass({ isActive }: { isActive: boolean }): string {
       ? 'bg-indigo-50 text-indigo-800 dark:bg-indigo-950 dark:text-indigo-200'
       : 'text-slate-700 hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-slate-800'
   }`
+}
+
+/** Pending sign-up count for administrators. The link keeps its plain name ("Account
+ * requests"); the count is exposed as the link's description. */
+function usePendingCount(enabled: boolean): number {
+  const query = useQuery({
+    queryKey: ['account-requests', 'count'],
+    queryFn: () => api.get<{ pending: number }>('/account-requests/count'),
+    enabled,
+    refetchInterval: 60_000,
+  })
+  return query.data?.pending ?? 0
+}
+
+function NavItemLink({ item, badge, onClick }: { item: NavItem; badge: number; onClick?: () => void }) {
+  const descriptionId = useId()
+  return (
+    <>
+      <NavLink
+        to={item.to}
+        end={item.to === '/'}
+        className={navClass}
+        onClick={onClick}
+        aria-describedby={badge ? descriptionId : undefined}
+      >
+        <Icon name={item.icon} />
+        {item.label}
+        {badge > 0 && (
+          <span
+            aria-hidden="true"
+            className="ml-auto inline-flex min-w-6 items-center justify-center rounded-full bg-amber-200 px-2 py-0.5 text-xs font-semibold text-amber-950 dark:bg-amber-700 dark:text-amber-50"
+          >
+            {badge}
+          </span>
+        )}
+      </NavLink>
+      {/* Outside the link so it is the link's description, not part of its name. */}
+      {badge > 0 && (
+        <span id={descriptionId} hidden>
+          {badge} pending
+        </span>
+      )}
+    </>
+  )
 }
 
 function ThemeToggle() {
@@ -55,6 +102,8 @@ export function AppShell() {
   const location = useLocation()
   const [moreOpen, setMoreOpen] = useState(false)
   const items = NAV_ITEMS.filter((item) => !item.adminOnly || user.role === 'admin')
+  const pending = usePendingCount(user.role === 'admin')
+  const badgeFor = (item: NavItem) => (item.to === '/account-requests' ? pending : 0)
   const secondary = items.filter((item) => !item.primary)
 
   return (
@@ -71,10 +120,7 @@ export function AppShell() {
         <p className="px-3 text-lg font-bold tracking-tight text-indigo-700 dark:text-indigo-300">EduPulse</p>
         <nav aria-label="Main" className="mt-6 flex flex-1 flex-col gap-1">
           {items.map((item) => (
-            <NavLink key={item.to} to={item.to} end={item.to === '/'} className={navClass}>
-              <Icon name={item.icon} />
-              {item.label}
-            </NavLink>
+            <NavItemLink key={item.to} item={item} badge={badgeFor(item)} />
           ))}
         </nav>
         <div className="border-t border-slate-200 pt-4 dark:border-slate-800">
@@ -138,7 +184,12 @@ export function AppShell() {
               : 'text-slate-600 dark:text-slate-400'
           }`}
         >
-          <Icon name="more" />
+          <span className="relative">
+            <Icon name="more" />
+            {pending > 0 && (
+              <span aria-hidden="true" className="absolute -top-1 -right-2 size-2.5 rounded-full bg-amber-500" />
+            )}
+          </span>
           More
         </button>
       </nav>
@@ -149,10 +200,7 @@ export function AppShell() {
         </p>
         <nav aria-label="More" className="flex flex-col gap-1">
           {secondary.map((item) => (
-            <NavLink key={item.to} to={item.to} className={navClass} onClick={() => setMoreOpen(false)}>
-              <Icon name={item.icon} />
-              {item.label}
-            </NavLink>
+            <NavItemLink key={item.to} item={item} badge={badgeFor(item)} onClick={() => setMoreOpen(false)} />
           ))}
           <button
             type="button"

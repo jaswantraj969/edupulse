@@ -1,4 +1,4 @@
-"""In-memory sliding-window limiter for failed login attempts.
+"""In-memory sliding-window limiters for failed login attempts and self sign-up requests.
 
 State is per API process. With several workers or replicas the effective limit is multiplied;
 a shared store (e.g. Redis) would be needed for a multi-instance deployment.

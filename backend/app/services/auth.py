@@ -35,7 +35,8 @@ def authenticate(db: Session, email: str, password: str) -> User | None:
     if user is None:
         verify_password(password, _DUMMY_HASH)
         return None
-    if not verify_password(password, user.hashed_password) or not user.is_active:
+    # Rejected and disabled accounts get the same answer as a wrong password.
+    if not verify_password(password, user.hashed_password) or not user.can_sign_in:
         return None
     if needs_rehash(user.hashed_password):
         user.hashed_password = hash_password(password)
@@ -44,7 +45,8 @@ def authenticate(db: Session, email: str, password: str) -> User | None:
 
 
 def issue_tokens(db: Session, user: User, settings: Settings) -> IssuedTokens:
-    access, lifetime = create_access_token(user.id, user.role.value, settings)
+    role = user.role.value if user.role is not None else "none"
+    access, lifetime = create_access_token(user.id, role, settings)
     raw_refresh = new_refresh_token()
     db.add(
         RefreshToken(
@@ -79,10 +81,16 @@ def rotate_refresh_token(db: Session, raw_token: str, settings: Settings) -> Iss
     if stored.revoked_at is not None:
         revoke_all(db, stored.user_id)
         return None
-    if as_utc(stored.expires_at) <= utcnow() or not stored.user.is_active:
+    if as_utc(stored.expires_at) <= utcnow() or not stored.user.can_sign_in:
         return None
     stored.revoked_at = utcnow()
     return issue_tokens(db, stored.user, settings)
+
+
+def burn_password_hash(password: str) -> None:
+    """Spend the same time as creating an account, so sign-up does not reveal existing e-mails
+    through response time."""
+    hash_password(password)
 
 
 def revoke_refresh_token(db: Session, raw_token: str) -> None:

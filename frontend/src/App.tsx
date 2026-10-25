@@ -6,6 +6,9 @@ import { buttonClass } from '@/components/buttonClass'
 import { useAuth } from '@/lib/auth'
 
 const LoginPage = lazy(() => import('@/pages/LoginPage'))
+const SignupPage = lazy(() => import('@/pages/auth/SignupPage'))
+const PendingPage = lazy(() => import('@/pages/auth/PendingPage'))
+const AccountRequestsPage = lazy(() => import('@/pages/accounts/AccountRequestsPage'))
 const DashboardPage = lazy(() => import('@/pages/dashboard/DashboardPage'))
 const StudentsListPage = lazy(() => import('@/pages/students/StudentsListPage'))
 const StudentDetailPage = lazy(() => import('@/pages/students/StudentDetailPage'))
@@ -22,7 +25,7 @@ const StudentRiskPage = lazy(() => import('@/pages/risk/StudentRiskPage'))
 const AuditLogPage = lazy(() => import('@/pages/risk/AuditLogPage'))
 
 function RequireAuth() {
-  const { status, endedBy } = useAuth()
+  const { status, endedBy, user } = useAuth()
   const location = useLocation()
   if (status === 'loading') return <LoadingState label="Signing in…" />
   if (status === 'anonymous') {
@@ -31,6 +34,8 @@ function RequireAuth() {
     const from = endedBy === 'logout' ? undefined : location.pathname + location.search
     return <Navigate to="/login" replace state={from ? { from } : null} />
   }
+  // A pending account sees only the waiting page, whatever the URL; the API refuses its data.
+  if (user && user.status !== 'active') return <Page><PendingPage /></Page>
   return <Outlet />
 }
 
@@ -62,6 +67,7 @@ function NotFound() {
 
 const router = createBrowserRouter([
   { path: '/login', element: <Page><LoginPage /></Page> },
+  { path: '/signup', element: <Page><SignupPage /></Page> },
   {
     element: <RequireAuth />,
     children: [
@@ -82,6 +88,7 @@ const router = createBrowserRouter([
           { path: 'early-warning', element: <Page><RiskListPage /></Page> },
           { path: 'early-warning/students/:id', element: <Page><StudentRiskPage /></Page> },
           { path: 'audit', element: <Page><AdminOnly><AuditLogPage /></AdminOnly></Page> },
+          { path: 'account-requests', element: <Page><AdminOnly><AccountRequestsPage /></AdminOnly></Page> },
           { path: '*', element: <NotFound /> },
         ],
       },

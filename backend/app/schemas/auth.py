@@ -5,7 +5,7 @@ from datetime import datetime
 from pydantic import BaseModel, ConfigDict, EmailStr, Field, field_validator, model_validator
 
 from app.core.passwords import MAX_LENGTH, password_policy_errors
-from app.models.enums import Role
+from app.models.enums import AccountStatus, Role
 
 
 class TokenResponse(BaseModel):
@@ -22,8 +22,8 @@ class UserRead(BaseModel):
     id: int
     email: EmailStr
     full_name: str
-    role: Role
-    is_active: bool
+    role: Role | None = Field(description="None while the account is pending approval")
+    status: AccountStatus
     teacher_id: int | None
     last_login_at: datetime | None
 
@@ -55,3 +55,38 @@ class UserCreate(BaseModel):
         if self.role == Role.ADMIN and self.teacher_id is not None:
             raise ValueError("admin accounts cannot be linked to a teacher profile")
         return self
+
+
+class SignupRequest(BaseModel):
+    """Self sign-up. The account starts as pending and has no access until approved."""
+
+    full_name: str = Field(min_length=1, max_length=200)
+    email: EmailStr
+    password: str = Field(max_length=MAX_LENGTH)
+    note: str | None = Field(
+        default=None,
+        max_length=500,
+        description='Optional context for the administrator, e.g. "I teach biology in 10-A"',
+    )
+
+    @field_validator("full_name", "note")
+    @classmethod
+    def _strip(cls, value: str | None) -> str | None:
+        return value.strip() if value is not None else None
+
+    @field_validator("email")
+    @classmethod
+    def _normalise_email(cls, value: str) -> str:
+        return value.strip().lower()
+
+    @field_validator("password")
+    @classmethod
+    def _password_policy(cls, value: str) -> str:
+        errors = password_policy_errors(value)
+        if errors:
+            raise ValueError("Password " + "; ".join(errors))
+        return value
+
+
+class SignupAccepted(BaseModel):
+    message: str

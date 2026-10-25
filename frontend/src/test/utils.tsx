@@ -13,7 +13,7 @@ export const ADMIN: User = {
   email: 'admin@edupulse.example',
   full_name: 'Demo Administrator',
   role: 'admin',
-  is_active: true,
+  status: 'active',
   teacher_id: null,
   last_login_at: null,
 }

@@ -105,7 +105,8 @@ def school(db: Session, settings: Settings) -> School:
     db.commit()
 
     def headers(user: User) -> dict[str, str]:
-        token, _ = create_access_token(user.id, user.role.value, settings)
+        role = user.role.value if user.role is not None else "none"
+        token, _ = create_access_token(user.id, role, settings)
         return {"Authorization": f"Bearer {token}"}
 
     return School(

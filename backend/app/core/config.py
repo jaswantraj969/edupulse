@@ -45,6 +45,9 @@ class Settings(BaseSettings):
 
     login_rate_limit_attempts: int = Field(default=5, ge=1)
     login_rate_limit_window_seconds: int = Field(default=60, ge=1)
+    # Self sign-up requests per client (every attempt counts, successful or not).
+    signup_rate_limit_attempts: int = Field(default=5, ge=1)
+    signup_rate_limit_window_seconds: int = Field(default=3600, ge=1)
 
     # Refresh-token cookie is Secure by default. Browsers accept Secure cookies on http://localhost
     # and http://127.0.0.1, so local Docker use works; set false only for plain-HTTP LAN testing.
@@ -55,6 +58,9 @@ class Settings(BaseSettings):
     model_dir: Path = BACKEND_DIR / "model"
     # True while the database holds synthetic demo data: risk scores are then labelled as demo.
     demo_mode: bool = True
+    # The password the seed script gave every demo account. Shown on the login page only while
+    # demo_mode is true; leave it unset (and demo_mode false) for any real installation.
+    demo_password: SecretStr = SecretStr("")
     log_level: str = "INFO"
     log_json: bool = True
 
