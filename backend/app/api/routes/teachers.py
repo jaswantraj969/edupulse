@@ -7,7 +7,7 @@ from fastapi.responses import Response as RawResponse
 from sqlalchemy import exists, select
 from sqlalchemy.orm import Session
 
-from app.api.deps import AdminUser, CurrentUser, DbDep
+from app.api.deps import AdminUser, CurrentUser, DbDep, NotInPublicDemo
 from app.api.pagination import Page, PageDep, apply_sort, paginate_rows, search_clause
 from app.core.errors import ERROR_RESPONSES, conflict
 from app.models import Teacher, TeachingAssignment, User
@@ -91,7 +91,12 @@ def export_teachers(db: DbDep, _admin: AdminUser) -> Response:
     )
 
 
-@router.post("/import", response_model=ImportResult, summary="Import teachers from CSV")
+@router.post(
+    "/import",
+    response_model=ImportResult,
+    summary="Import teachers from CSV",
+    dependencies=[NotInPublicDemo],
+)
 async def import_teachers(
     db: DbDep,
     _admin: AdminUser,
@@ -140,7 +145,12 @@ def update_teacher(
     return _load(db, teacher_id)
 
 
-@router.delete("/{teacher_id}", status_code=status.HTTP_204_NO_CONTENT, summary="Delete teacher")
+@router.delete(
+    "/{teacher_id}",
+    status_code=status.HTTP_204_NO_CONTENT,
+    summary="Delete teacher",
+    dependencies=[NotInPublicDemo],
+)
 def delete_teacher(teacher_id: int, db: DbDep, _admin: AdminUser) -> Response:
     """Refused (409) while the teacher still has teaching assignments. The teacher's login
     account, if any, is deleted with the profile."""

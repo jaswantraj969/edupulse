@@ -311,7 +311,12 @@ def test_meta_shows_demo_accounts_only_in_demo_mode(
 
     settings.demo_mode = False
     response = client.get(META)
-    assert response.json() == {"demo_mode": False, "demo_accounts": []}
+    assert response.json() == {
+        "demo_mode": False,
+        "public_demo": False,
+        "demo_reset_hours": 6,
+        "demo_accounts": [],
+    }
     assert "Demo-Password-77" not in response.text
     assert response.headers["cache-control"] == "no-store"
 
@@ -321,4 +326,9 @@ def test_meta_without_demo_password_lists_no_accounts(
 ) -> None:
     settings.demo_mode = True
     settings.demo_password = SecretStr("")
-    assert client.get(META).json() == {"demo_mode": True, "demo_accounts": []}
+    assert client.get(META).json() == {
+        "demo_mode": True,
+        "public_demo": False,
+        "demo_reset_hours": 6,
+        "demo_accounts": [],
+    }

@@ -88,6 +88,16 @@ for (const theme of ['light', 'dark'] as const) {
     await scan(page, `${theme} approve dialog`, testInfo)
     await page.unroute('**/api/v1/account-requests')
 
+    // Public demo: the banner and the disabled (locked) actions, via a stubbed /meta.
+    await page.route('**/api/v1/meta', (route) =>
+      route.fulfill({ json: { demo_mode: true, public_demo: true, demo_reset_hours: 6, demo_accounts: [] } }),
+    )
+    await page.goto('/staff')
+    await expect(page.getByRole('region', { name: 'Public demo notice' })).toBeVisible()
+    await expect(page.getByRole('button', { name: 'Import CSV' })).toBeDisabled()
+    await scan(page, `${theme} public demo`, testInfo)
+    await page.unroute('**/api/v1/meta')
+
     // The waiting page, as the app shows it to an account that is pending approval.
     await page.route('**/api/v1/auth/me', (route) =>
       route.fulfill({ json: { ...PENDING_REQUEST, role: null, teacher_id: null, last_login_at: null } }),

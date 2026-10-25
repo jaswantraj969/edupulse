@@ -15,6 +15,7 @@ from app.api.deps import (
     DbDep,
     SettingsDep,
     SignedInUser,
+    disabled_in_public_demo,
     get_login_limiter,
     get_signup_limiter,
 )
@@ -210,7 +211,10 @@ def signup(
     status_code=status.HTTP_201_CREATED,
     summary="Create a user account (admin only)",
 )
-def register(payload: UserCreate, db: DbDep, _admin: AdminUser) -> User:
+def register(payload: UserCreate, db: DbDep, settings: SettingsDep, _admin: AdminUser) -> User:
+    """In the public demo, administrator accounts cannot be created."""
+    if settings.public_demo and payload.role == Role.ADMIN:
+        raise disabled_in_public_demo()
     if db.scalar(select(User.id).where(User.email == payload.email)) is not None:
         raise conflict("A user with this e-mail already exists")
     if payload.role == Role.TEACHER:

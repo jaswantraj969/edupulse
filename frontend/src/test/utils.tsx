@@ -28,6 +28,7 @@ export function mockApi(routes: Record<string, Handler | unknown>, user: User | 
   const all: Record<string, Handler | unknown> = {
     'POST /api/v1/auth/refresh': user ? { access_token: 'token', token_type: 'bearer', expires_in: 900 } : { __status: 401 },
     'GET /api/v1/auth/me': user,
+    'GET /api/v1/meta': { demo_mode: false, public_demo: false, demo_reset_hours: 6, demo_accounts: [] },
     ...routes,
   }
   const fetchMock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {

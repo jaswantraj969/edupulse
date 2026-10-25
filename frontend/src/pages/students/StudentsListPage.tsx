@@ -13,11 +13,13 @@ import { useListState } from '@/lib/hooks'
 import { useAllClasses } from '@/lib/queries'
 import { useToast } from '@/lib/toast'
 import type { Page, Student } from '@/lib/types'
+import { useDemoLock } from '@/lib/meta'
 
 const FILTERS = ['status', 'class_id']
 const STATUSES = ['active', 'inactive', 'graduated', 'withdrawn'].map((s) => ({ value: s, label: capitalize(s) }))
 
 export default function StudentsListPage() {
+  const lock = useDemoLock()
   const user = useUser()
   const toast = useToast()
   const isAdmin = user.role === 'admin'
@@ -80,7 +82,7 @@ export default function StudentsListPage() {
             </Button>
             {isAdmin && (
               <>
-                <Button variant="secondary" onClick={() => setImportOpen(true)}>
+                <Button variant="secondary" onClick={() => setImportOpen(true)} {...lock}>
                   Import CSV
                 </Button>
                 <Link to="/students/new" className={buttonClass('primary')}>

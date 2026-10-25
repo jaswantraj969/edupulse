@@ -6,7 +6,7 @@ from fastapi import APIRouter, File, Response, UploadFile, status
 from fastapi.responses import Response as RawResponse
 from sqlalchemy import select
 
-from app.api.deps import AdminUser, DbDep
+from app.api.deps import AdminUser, DbDep, NotInPublicDemo
 from app.api.pagination import Page, PageDep, apply_sort, paginate, search_clause
 from app.core.errors import ERROR_RESPONSES
 from app.models import Staff
@@ -88,7 +88,12 @@ def export_staff(db: DbDep, _admin: AdminUser) -> Response:
     )
 
 
-@router.post("/import", response_model=ImportResult, summary="Import staff from CSV")
+@router.post(
+    "/import",
+    response_model=ImportResult,
+    summary="Import staff from CSV",
+    dependencies=[NotInPublicDemo],
+)
 async def import_staff(
     db: DbDep,
     _admin: AdminUser,
@@ -137,7 +142,12 @@ def update_staff(staff_id: int, payload: StaffUpdate, db: DbDep, _admin: AdminUs
     return member
 
 
-@router.delete("/{staff_id}", status_code=status.HTTP_204_NO_CONTENT, summary="Delete staff member")
+@router.delete(
+    "/{staff_id}",
+    status_code=status.HTTP_204_NO_CONTENT,
+    summary="Delete staff member",
+    dependencies=[NotInPublicDemo],
+)
 def delete_staff(staff_id: int, db: DbDep, _admin: AdminUser) -> Response:
     db.delete(get_or_404(db, Staff, staff_id, "Staff member"))
     db.commit()

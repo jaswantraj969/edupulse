@@ -13,6 +13,7 @@ import { useListState } from '@/lib/hooks'
 import { useToast } from '@/lib/toast'
 import type { Page, Teacher } from '@/lib/types'
 import { teacherSchema, type TeacherFormValues } from './schemas'
+import { useDemoLock } from '@/lib/meta'
 
 const FILTERS = ['is_active']
 const FIELDS: FieldSpec<TeacherFormValues>[] = [
@@ -41,6 +42,7 @@ function toValues(t: Teacher): TeacherFormValues {
 }
 
 export default function TeachersPage() {
+  const lock = useDemoLock()
   const user = useUser()
   const isAdmin = user.role === 'admin'
   const toast = useToast()
@@ -84,7 +86,7 @@ export default function TeachersPage() {
             <Button variant="ghost" className="min-h-8 px-2 py-1" onClick={() => setEditing(t)} aria-label={`Edit ${fullName(t)}`}>
               Edit
             </Button>
-            <Button variant="ghost" className="min-h-8 px-2 py-1 text-red-700 dark:text-red-400" onClick={() => setDeleting(t)} aria-label={`Delete ${fullName(t)}`}>
+            <Button variant="ghost" className="min-h-8 px-2 py-1 text-red-700 dark:text-red-400" onClick={() => setDeleting(t)} aria-label={`Delete ${fullName(t)}`} {...lock}>
               Delete
             </Button>
           </span>
@@ -92,7 +94,7 @@ export default function TeachersPage() {
       })
     }
     return cols
-  }, [isAdmin])
+  }, [isAdmin, lock])
 
   const save = async (values: ReturnType<typeof teacherSchema.parse>) => {
     if (editing === 'new') await api.post('/teachers', values)
@@ -112,7 +114,7 @@ export default function TeachersPage() {
               <Button variant="secondary" onClick={() => void api.text('/teachers/export').then((t) => downloadText('teachers.csv', t), (e) => toast.error(errorMessage(e)))}>
                 Export CSV
               </Button>
-              <Button variant="secondary" onClick={() => setImportOpen(true)}>
+              <Button variant="secondary" onClick={() => setImportOpen(true)} {...lock}>
                 Import CSV
               </Button>
               <Button onClick={() => setEditing('new')}>Add teacher</Button>

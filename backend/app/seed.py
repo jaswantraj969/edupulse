@@ -38,9 +38,11 @@ from app.models import (
     AssessmentKind,
     AttendanceRecord,
     AttendanceStatus,
+    AuditLog,
     ClassGroup,
     Enrolment,
     Grade,
+    RefreshToken,
     Role,
     Staff,
     Student,
@@ -92,6 +94,8 @@ STAFF_ROLES = [
     ("Facilities Manager", "Facilities"),
 ]
 DELETE_ORDER = [
+    AuditLog,
+    RefreshToken,
     Grade,
     Assessment,
     AttendanceRecord,

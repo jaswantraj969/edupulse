@@ -9,6 +9,14 @@
 }
 
 @layer base {
+  /* Height of the public-demo banner; 0 unless the banner is on the page. Sticky parts of the
+     shell are offset by it so nothing is pushed below the viewport. */
+  :root {
+    --demo-banner-h: 0px;
+  }
+  :root:has(#public-demo-banner) {
+    --demo-banner-h: 2.5rem;
+  }
   :root {
     color-scheme: light;
   }

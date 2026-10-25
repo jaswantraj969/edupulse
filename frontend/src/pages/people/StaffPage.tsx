@@ -12,6 +12,7 @@ import { useListState } from '@/lib/hooks'
 import { useToast } from '@/lib/toast'
 import type { Page, StaffMember } from '@/lib/types'
 import { staffSchema, type StaffFormValues } from './schemas'
+import { useDemoLock } from '@/lib/meta'
 
 const FILTERS = ['department']
 const DEPARTMENTS = ['Administration', 'Facilities', 'Finance', 'Health', 'IT', 'Library', 'Science', 'Student Services']
@@ -39,6 +40,7 @@ const EMPTY: StaffFormValues = {
 }
 
 export default function StaffPage() {
+  const lock = useDemoLock()
   const toast = useToast()
   const queryClient = useQueryClient()
   const { params, update, toggleSort } = useListState('last_name', FILTERS)
@@ -78,14 +80,14 @@ export default function StaffPage() {
             <Button variant="ghost" className="min-h-8 px-2 py-1" onClick={() => setEditing(m)} aria-label={`Edit ${fullName(m)}`}>
               Edit
             </Button>
-            <Button variant="ghost" className="min-h-8 px-2 py-1 text-red-700 dark:text-red-400" onClick={() => setDeleting(m)} aria-label={`Delete ${fullName(m)}`}>
+            <Button variant="ghost" className="min-h-8 px-2 py-1 text-red-700 dark:text-red-400" onClick={() => setDeleting(m)} aria-label={`Delete ${fullName(m)}`} {...lock}>
               Delete
             </Button>
           </span>
         ),
       },
     ],
-    [],
+    [lock],
   )
 
   const save = async (values: ReturnType<typeof staffSchema.parse>) => {
@@ -105,7 +107,7 @@ export default function StaffPage() {
             <Button variant="secondary" onClick={() => void api.text('/staff/export').then((t) => downloadText('staff.csv', t), (e) => toast.error(errorMessage(e)))}>
               Export CSV
             </Button>
-            <Button variant="secondary" onClick={() => setImportOpen(true)}>
+            <Button variant="secondary" onClick={() => setImportOpen(true)} {...lock}>
               Import CSV
             </Button>
             <Button onClick={() => setEditing('new')}>Add staff member</Button>

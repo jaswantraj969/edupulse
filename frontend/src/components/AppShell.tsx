@@ -116,7 +116,7 @@ export function AppShell() {
       </a>
 
       {/* Sidebar (tablet and desktop) */}
-      <aside className="sticky top-0 hidden h-dvh w-60 shrink-0 flex-col border-r border-slate-200 bg-white px-3 py-5 md:flex dark:border-slate-800 dark:bg-slate-900">
+      <aside className="sticky top-(--demo-banner-h) hidden h-[calc(100dvh-var(--demo-banner-h))] w-60 shrink-0 flex-col border-r border-slate-200 bg-white px-3 py-5 md:flex dark:border-slate-800 dark:bg-slate-900">
         <p className="px-3 text-lg font-bold tracking-tight text-indigo-700 dark:text-indigo-300">EduPulse</p>
         <nav aria-label="Main" className="mt-6 flex flex-1 flex-col gap-1">
           {items.map((item) => (
@@ -142,7 +142,7 @@ export function AppShell() {
 
       <div className="flex min-w-0 flex-1 flex-col">
         {/* Top bar (mobile) */}
-        <header className="sticky top-0 z-30 flex items-center justify-between border-b border-slate-200 bg-white/95 px-4 py-3 backdrop-blur md:hidden dark:border-slate-800 dark:bg-slate-900/95">
+        <header className="sticky top-(--demo-banner-h) z-30 flex items-center justify-between border-b border-slate-200 bg-white/95 px-4 py-3 backdrop-blur md:hidden dark:border-slate-800 dark:bg-slate-900/95">
           <p className="text-lg font-bold tracking-tight text-indigo-700 dark:text-indigo-300">EduPulse</p>
           <ThemeToggle />
         </header>

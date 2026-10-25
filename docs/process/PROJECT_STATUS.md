@@ -18,7 +18,7 @@ its output recorded in `REVIEW_PACKET.md`; it is not a claim of external verific
 
 ## Resume point
 
-F1 done: self sign-up with admin approval and demo logins on the login page (D83–D85); release v1.2.0. Repository is public.
+D1 done: public-demo safeguards and deployment package (D86–D88); release v1.3.0. Repository is public.
 
 ## Decisions
 
@@ -109,6 +109,9 @@ F1 done: self sign-up with admin approval and demo logins on the login page (D83
 | D83 | F1 | Self sign-up creates a `pending` account with no role (new `users.status`: pending / active / rejected / disabled, replacing `is_active`; migration keeps existing users active). Pending accounts can sign in but the shared `CurrentUser` dependency answers 403 `account_pending` on every data route; only `/auth/me`, refresh and logout work. Admins approve (admin, or teacher linked to an unlinked teacher profile) or reject; both audit-logged. | Every account sees children's data and a teacher's scope comes from the linked profile, which only an administrator can vouch for. |
 | D84 | F1 | Sign-up gives the same 202 response (and similar timing) whether or not the e-mail exists, never changes an existing account, and is rate-limited to 5 requests per client per hour. Rejected/disabled accounts get the wrong-password error. | No account enumeration; abuse resistance consistent with the login limiter. |
 | D85 | F1 | Public `GET /api/v1/meta` exposes `demo_mode` and, only in demo mode with `EDUPULSE_DEMO_PASSWORD` set, the demo admin and one demo teacher (with a homeroom class) including the password, so the login page can offer "Use this account". Compose now passes `EDUPULSE_DEMO_MODE`. | Lets visitors try the synthetic demo; documented as unsuitable for real data. |
+| D86 | D1 | `EDUPULSE_PUBLIC_DEMO` (default off): one route dependency (`NotInPublicDemo`) refuses deletes of students/teachers/staff/classes, the three CSV imports and account approve/reject with 403 `disabled_in_public_demo`; `/auth/register` refuses role admin. There is no password-change endpoint (test on the OpenAPI schema). `/meta` exposes `public_demo` for the banner and the disabled buttons. | Anyone can use a public demo; actions that destroy the shared demo or escalate privileges are switched off for everyone. |
+| D87 | D1 | Demo reset = full delete (now including audit logs and refresh tokens) + deterministic seed in one transaction (`app.demo_reset`), run by a `demo-reset` container every 6 hours; it seeds an empty database at start. | Visitors' sign-ups, audit entries and edits disappear on schedule; no half-empty window. |
+| D88 | D1 | Deployment package `deploy/`: Caddy as the only public service (auto-HTTPS), `/api/*` routed directly to the API with forwarded-header trust for Caddy's fixed IP only, no published DB/API ports, daily pg_dump volume, restart policies, resource limits, log rotation, generated `.env`, smoke-test script; CI validates the compose file, Caddyfile and scripts. Verified locally with `EDUPULSE_DOMAIN=localhost` (Caddy internal CA): smoke test all passed. | A reproducible path from a fresh Ubuntu VPS to a public HTTPS demo. |
 
 ## Deviations and limitations
 

@@ -13,6 +13,8 @@ afterEach(() => vi.unstubAllGlobals())
 
 const DEMO: Meta = {
   demo_mode: true,
+  public_demo: false,
+  demo_reset_hours: 6,
   demo_accounts: [
     { role: 'admin', label: 'Administrator', email: 'admin@edupulse.example', password: 'Demo-Password-77' },
     { role: 'teacher', label: 'Teacher (Ana Lopes)', email: 'ana@edupulse.example', password: 'Demo-Password-77' },

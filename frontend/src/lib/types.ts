@@ -42,6 +42,8 @@ export interface DemoAccount {
 
 export interface Meta {
   demo_mode: boolean
+  public_demo: boolean
+  demo_reset_hours: number
   demo_accounts: DemoAccount[]
 }
 

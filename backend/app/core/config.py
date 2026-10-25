@@ -61,6 +61,10 @@ class Settings(BaseSettings):
     # The password the seed script gave every demo account. Shown on the login page only while
     # demo_mode is true; leave it unset (and demo_mode false) for any real installation.
     demo_password: SecretStr = SecretStr("")
+    # Public demo (anyone on the internet can sign in): destructive and abusable actions are
+    # refused and the database is reset every demo_reset_hours (see app/demo_reset.py).
+    public_demo: bool = False
+    demo_reset_hours: int = Field(default=6, ge=1, le=168)
     log_level: str = "INFO"
     log_json: bool = True
 

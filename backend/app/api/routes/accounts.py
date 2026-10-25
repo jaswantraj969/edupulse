@@ -3,7 +3,7 @@
 from fastapi import APIRouter, Request, status
 from sqlalchemy import func, select
 
-from app.api.deps import AdminUser, DbDep
+from app.api.deps import AdminUser, DbDep, NotInPublicDemo
 from app.core.errors import ERROR_RESPONSES, AppError, conflict, not_found
 from app.core.security import utcnow
 from app.models import AccountStatus, AuditAction, Role, Teacher, User
@@ -69,7 +69,12 @@ def pending_count(db: DbDep, _admin: AdminUser) -> dict[str, int]:
     return {"pending": count or 0}
 
 
-@router.post("/{user_id}/approve", response_model=AccountRequest, summary="Approve a request")
+@router.post(
+    "/{user_id}/approve",
+    response_model=AccountRequest,
+    summary="Approve a request",
+    dependencies=[NotInPublicDemo],
+)
 def approve(
     user_id: int, payload: ApproveRequest, request: Request, db: DbDep, admin: AdminUser
 ) -> User:
@@ -102,7 +107,12 @@ def approve(
     return user
 
 
-@router.post("/{user_id}/reject", response_model=AccountRequest, summary="Reject a request")
+@router.post(
+    "/{user_id}/reject",
+    response_model=AccountRequest,
+    summary="Reject a request",
+    dependencies=[NotInPublicDemo],
+)
 def reject(
     user_id: int, payload: RejectRequest, request: Request, db: DbDep, admin: AdminUser
 ) -> User:

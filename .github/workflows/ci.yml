@@ -177,3 +177,23 @@ jobs:
       - run: cd backend && uv sync --frozen
       - run: cd frontend && npm ci
       - run: scripts/audit_deps.sh
+
+  deploy-config:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Shell scripts (shellcheck)
+        run: shellcheck deploy/*.sh backend/docker-entrypoint.sh scripts/*.sh
+      - name: Caddyfile is valid
+        run: |
+          docker run --rm -e EDUPULSE_DOMAIN=ci.example.org -e ACME_EMAIL=ci@example.org \
+            -v "$PWD/deploy/Caddyfile:/etc/caddy/Caddyfile:ro" caddy:2.8-alpine \
+            caddy validate --config /etc/caddy/Caddyfile --adapter caddyfile
+      - name: Production compose file is valid (with a generated .env)
+        working-directory: deploy
+        run: |
+          ./make_env.sh ci.example.org ci@example.org
+          docker compose -f docker-compose.prod.yml config --quiet
+          # Only Caddy publishes ports.
+          test "$(docker compose -f docker-compose.prod.yml config --format json | python3 -c 'import json,sys; print(",".join(sorted(n for n,s in json.load(sys.stdin)["services"].items() if s.get("ports"))))')" = caddy
+          rm .env

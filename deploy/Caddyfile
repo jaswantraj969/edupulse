@@ -1,0 +1,28 @@
+# Caddy: the only public entry point. Automatic HTTPS (Let's Encrypt) for EDUPULSE_DOMAIN and
+# an HTTP -> HTTPS redirect. /api/* goes straight to the API (which trusts X-Forwarded-For from
+# Caddy only); everything else is the single-page app served by the web container.
+{
+	email {$ACME_EMAIL}
+}
+
+{$EDUPULSE_DOMAIN} {
+	encode zstd gzip
+
+	header {
+		Strict-Transport-Security "max-age=31536000; includeSubDomains"
+		-Server
+	}
+
+	handle /api/* {
+		reverse_proxy api:8000
+	}
+
+	handle {
+		reverse_proxy web:8080
+	}
+
+	log {
+		output stdout
+		format json
+	}
+}

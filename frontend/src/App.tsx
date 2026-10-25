@@ -4,6 +4,7 @@ import { AppShell } from '@/components/AppShell'
 import { EmptyState, LoadingState } from '@/components/ui'
 import { buttonClass } from '@/components/buttonClass'
 import { useAuth } from '@/lib/auth'
+import { PublicDemoBanner } from '@/lib/meta'
 
 const LoginPage = lazy(() => import('@/pages/LoginPage'))
 const SignupPage = lazy(() => import('@/pages/auth/SignupPage'))
@@ -65,7 +66,19 @@ function NotFound() {
   )
 }
 
+function RootLayout() {
+  return (
+    <>
+      <PublicDemoBanner />
+      <Outlet />
+    </>
+  )
+}
+
 const router = createBrowserRouter([
+  {
+  element: <RootLayout />,
+  children: [
   { path: '/login', element: <Page><LoginPage /></Page> },
   { path: '/signup', element: <Page><SignupPage /></Page> },
   {
@@ -93,6 +106,8 @@ const router = createBrowserRouter([
         ],
       },
     ],
+  },
+  ],
   },
 ])
 

@@ -8,7 +8,7 @@ from fastapi.responses import Response as RawResponse
 from sqlalchemy import and_, func, select
 from sqlalchemy.orm import Session
 
-from app.api.deps import AdminUser, CurrentUser, DbDep
+from app.api.deps import AdminUser, CurrentUser, DbDep, NotInPublicDemo
 from app.api.pagination import AnySelect, Page, PageDep, apply_sort, paginate_rows, search_clause
 from app.core.errors import ERROR_RESPONSES, AppError, not_found
 from app.models import (
@@ -161,7 +161,12 @@ def export_students(db: DbDep, user: CurrentUser) -> Response:
     return csv_response("students.csv", CSV_COLUMNS, rows)
 
 
-@router.post("/import", response_model=ImportResult, summary="Import students from CSV")
+@router.post(
+    "/import",
+    response_model=ImportResult,
+    summary="Import students from CSV",
+    dependencies=[NotInPublicDemo],
+)
 async def import_students(
     db: DbDep,
     _admin: AdminUser,
@@ -264,7 +269,12 @@ def update_student(
     return _load(db, student_id)
 
 
-@router.delete("/{student_id}", status_code=status.HTTP_204_NO_CONTENT, summary="Delete student")
+@router.delete(
+    "/{student_id}",
+    status_code=status.HTTP_204_NO_CONTENT,
+    summary="Delete student",
+    dependencies=[NotInPublicDemo],
+)
 def delete_student(student_id: int, db: DbDep, _admin: AdminUser) -> Response:
     """Permanently deletes the student with their enrolments, attendance and grades."""
     db.delete(get_or_404(db, Student, student_id, "Student"))

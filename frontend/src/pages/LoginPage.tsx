@@ -1,14 +1,14 @@
 import { zodResolver } from '@hookform/resolvers/zod'
-import { useQuery } from '@tanstack/react-query'
 import { useState } from 'react'
 import { useForm } from 'react-hook-form'
 import { Link, Navigate, useLocation, useNavigate } from 'react-router'
 import { z } from 'zod'
 import { FormError, TextField } from '@/components/Field'
 import { Button } from '@/components/ui'
-import { ApiError, api, errorMessage } from '@/lib/api'
+import { ApiError, errorMessage } from '@/lib/api'
 import { useAuth } from '@/lib/auth'
-import type { DemoAccount, Meta } from '@/lib/types'
+import { useMeta } from '@/lib/meta'
+import type { DemoAccount } from '@/lib/types'
 
 const schema = z.object({
   email: z.string().trim().min(1, 'Enter your e-mail address').pipe(z.email('Enter a valid e-mail address')),
@@ -49,7 +49,7 @@ export default function LoginPage() {
   const navigate = useNavigate()
   const location = useLocation()
   const [serverError, setServerError] = useState<string | null>(null)
-  const meta = useQuery({ queryKey: ['meta'], queryFn: () => api.get<Meta>('/meta'), retry: false, staleTime: 60_000 })
+  const meta = useMeta()
   const {
     register,
     handleSubmit,

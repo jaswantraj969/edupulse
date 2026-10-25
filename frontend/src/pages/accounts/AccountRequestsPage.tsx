@@ -12,6 +12,7 @@ import { api, errorMessage } from '@/lib/api'
 import { formatDate } from '@/lib/format'
 import { useToast } from '@/lib/toast'
 import type { AccountRequest, UnlinkedTeacher } from '@/lib/types'
+import { useDemoLock } from '@/lib/meta'
 
 const approveSchema = z
   .object({ role: z.enum(['teacher', 'admin']), teacher_id: z.string() })
@@ -171,6 +172,7 @@ function RejectDialog({ request, onClose }: { request: AccountRequest; onClose: 
 }
 
 export default function AccountRequestsPage() {
+  const lock = useDemoLock()
   const query = useQuery({
     queryKey: ['account-requests', 'list'],
     queryFn: () => api.get<{ items: AccountRequest[]; total: number }>('/account-requests'),
@@ -196,10 +198,10 @@ export default function AccountRequestsPage() {
       header: 'Decision',
       render: (r) => (
         <span className="flex flex-wrap gap-2">
-          <Button onClick={() => setDialog({ kind: 'approve', request: r })} aria-label={`Approve ${r.full_name}`}>
+          <Button onClick={() => setDialog({ kind: 'approve', request: r })} aria-label={`Approve ${r.full_name}`} {...lock}>
             Approve
           </Button>
-          <Button variant="secondary" onClick={() => setDialog({ kind: 'reject', request: r })} aria-label={`Reject ${r.full_name}`}>
+          <Button variant="secondary" onClick={() => setDialog({ kind: 'reject', request: r })} aria-label={`Reject ${r.full_name}`} {...lock}>
             Reject
           </Button>
         </span>

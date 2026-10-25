@@ -62,6 +62,31 @@
   open the login page can then sign in as the demo administrator — so a real installation must
   run with demo mode off and no demo password.
 
+## Public demo mode and deployment
+
+- **`EDUPULSE_PUBLIC_DEMO=true`** (off by default) is for an installation anyone may use.
+  - Deleting students, teachers, staff or classes, CSV import, approving or rejecting accounts,
+    and creating administrator accounts return `403 disabled_in_public_demo` for every user,
+    admins included.
+  - The app disables those buttons (tooltip and accessible description) and shows "Public demo —
+    synthetic data, reset every 6 hours" on every page.
+  - No endpoint changes an existing account's password (a test checks the OpenAPI schema), so
+    the demo passwords cannot be changed.
+  - The `demo-reset` job puts the database back to exactly the synthetic seed every
+    `EDUPULSE_DEMO_RESET_HOURS` (default 6). It deletes everything first, including sign-up
+    accounts, audit entries and sessions, and re-seeds in one transaction. A test checks that a
+    reset leaves exactly the seeded data.
+- **Deployment (`deploy/`).**
+  - Caddy is the only service with published ports (80/443): automatic HTTPS, HTTP → HTTPS
+    redirect, HSTS.
+  - `/api/*` goes straight from Caddy to the API, and uvicorn trusts `X-Forwarded-For` only from
+    Caddy's fixed address (`172.31.58.10`). The database and API are not published, so Docker's
+    port publishing cannot bypass the host firewall for them.
+  - Daily `pg_dump` backups; restart policies; CPU/memory limits; rotated logs.
+  - `deploy/make_env.sh` generates the secrets; no secret is stored in the repository.
+  - `deploy/smoke_test.sh` checks a deployed URL (health, login page, redirect, security headers,
+    blocked actions) without changing data.
+
 ## Authorisation
 
 Roles `admin` and `teacher`. A teacher can see a class if they are its homeroom teacher or teach

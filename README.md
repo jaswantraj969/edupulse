@@ -101,6 +101,18 @@ These accounts exist only in the demo database created by the seed script. Do no
 demo password anywhere else. For a real installation set `EDUPULSE_DEMO_MODE=false` and leave
 `EDUPULSE_DEMO_PASSWORD` unset for the API: the login page then never shows any account.
 
+## Deploying on a server
+
+[`deploy/`](deploy/) holds a production setup:
+- Caddy with automatic HTTPS is the only public service; the API and database are not exposed.
+- Daily database backups, restart policies and resource limits.
+- An optional **public demo** mode (`EDUPULSE_PUBLIC_DEMO=true`) blocks deletes, CSV import,
+  account approval and admin creation for everyone, shows a banner on every page, and resets the
+  database to the synthetic seed every 6 hours.
+
+[`deploy/README.md`](deploy/README.md) walks through a fresh Ubuntu VPS step by step. After
+deploying, `deploy/smoke_test.sh https://<your-domain>` checks the result.
+
 ## Architecture
 
 ```mermaid

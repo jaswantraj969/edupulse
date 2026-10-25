@@ -9,6 +9,7 @@ import { useUser } from '@/lib/auth'
 import { capitalize, formatDate, fullName, STUDENT_STATUS_TONE } from '@/lib/format'
 import { useToast } from '@/lib/toast'
 import type { AttendanceSummary, Student, StudentGrade } from '@/lib/types'
+import { useDemoLock } from '@/lib/meta'
 
 function AttendanceCard({ id }: { id: number }) {
   const query = useQuery({ queryKey: ['students', id, 'attendance'], queryFn: () => api.get<AttendanceSummary>(`/students/${id}/attendance`) })
@@ -86,6 +87,7 @@ function GradesCard({ id }: { id: number }) {
 }
 
 export default function StudentDetailPage() {
+  const lock = useDemoLock()
   const id = Number(useParams().id)
   const user = useUser()
   const navigate = useNavigate()
@@ -125,7 +127,7 @@ export default function StudentDetailPage() {
               <Link to={`/students/${id}/edit`} className={buttonClass('secondary')}>
                 Edit
               </Link>
-              <Button variant="danger" onClick={() => setConfirming(true)}>
+              <Button variant="danger" onClick={() => setConfirming(true)} {...lock}>
                 Delete
               </Button>
             </>

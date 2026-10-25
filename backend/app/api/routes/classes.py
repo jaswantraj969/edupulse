@@ -10,7 +10,7 @@ from fastapi import APIRouter, Query, Response, status
 from sqlalchemy import exists, func, select
 from sqlalchemy.orm import Session, joinedload
 
-from app.api.deps import AdminUser, CurrentUser, DbDep
+from app.api.deps import AdminUser, CurrentUser, DbDep, NotInPublicDemo
 from app.api.pagination import Page, PageDep, apply_sort, paginate, search_clause
 from app.core.errors import ERROR_RESPONSES, AppError, conflict, not_found
 from app.models import (
@@ -168,7 +168,12 @@ def update_class(class_id: int, payload: ClassUpdate, db: DbDep, _admin: AdminUs
     return _load(db, class_id)
 
 
-@router.delete("/{class_id}", status_code=status.HTTP_204_NO_CONTENT, summary="Delete class")
+@router.delete(
+    "/{class_id}",
+    status_code=status.HTTP_204_NO_CONTENT,
+    summary="Delete class",
+    dependencies=[NotInPublicDemo],
+)
 def delete_class(class_id: int, db: DbDep, _admin: AdminUser) -> Response:
     """Only empty classes (no enrolled students) can be deleted."""
     class_group = get_or_404(db, ClassGroup, class_id, "Class")

@@ -12,8 +12,10 @@ import { useAllTeachers } from '@/lib/queries'
 import { useToast } from '@/lib/toast'
 import type { Assignment, ClassGroup, StudentBrief } from '@/lib/types'
 import { classSchema, type ClassFormValues } from './classSchema'
+import { useDemoLock } from '@/lib/meta'
 
 export default function ClassDetailPage() {
+  const lock = useDemoLock()
   const id = Number(useParams().id)
   const user = useUser()
   const isAdmin = user.role === 'admin'
@@ -63,7 +65,7 @@ export default function ClassDetailPage() {
                 <Button variant="secondary" onClick={() => setEditing(true)}>
                   Edit
                 </Button>
-                <Button variant="danger" onClick={() => setDeleting(true)}>
+                <Button variant="danger" onClick={() => setDeleting(true)} {...lock}>
                   Delete
                 </Button>
               </>

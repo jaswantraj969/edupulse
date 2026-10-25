@@ -82,3 +82,21 @@ def require_admin(user: CurrentUser) -> User:
 
 
 AdminUser = Annotated[User, Depends(require_admin)]
+
+PUBLIC_DEMO_MESSAGE = (
+    "This action is disabled in the public demo, which anyone can use. Run EduPulse yourself to "
+    "try it."
+)
+
+
+def disabled_in_public_demo() -> AppError:
+    return AppError(status.HTTP_403_FORBIDDEN, PUBLIC_DEMO_MESSAGE, code="disabled_in_public_demo")
+
+
+def forbid_in_public_demo(settings: SettingsDep) -> None:
+    """Route guard for destructive or abusable actions (deletes, CSV import, account review)."""
+    if settings.public_demo:
+        raise disabled_in_public_demo()
+
+
+NotInPublicDemo = Depends(forbid_in_public_demo)

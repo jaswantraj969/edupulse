@@ -4,11 +4,16 @@ from fastapi import APIRouter, Response
 from sqlalchemy import select
 
 from app.api.deps import DbDep, SettingsDep
+from app.core.config import Settings
 from app.core.errors import ERROR_RESPONSES
 from app.models import AccountStatus, ClassGroup, Role, Teacher, User
 from app.schemas.meta import DemoAccount, Meta
 
 router = APIRouter(tags=["meta"], responses=ERROR_RESPONSES)
+
+
+def _public(settings: Settings) -> dict[str, bool | int]:
+    return {"public_demo": settings.public_demo, "demo_reset_hours": settings.demo_reset_hours}
 
 
 @router.get("/meta", response_model=Meta, summary="Installation facts (public)")
@@ -18,7 +23,7 @@ def meta(db: DbDep, settings: SettingsDep, response: Response) -> Meta:
     response.headers["Cache-Control"] = "no-store"
     password = settings.demo_password.get_secret_value()
     if not settings.demo_mode or not password:
-        return Meta(demo_mode=settings.demo_mode, demo_accounts=[])
+        return Meta(demo_mode=settings.demo_mode, demo_accounts=[], **_public(settings))
     active = User.status == AccountStatus.ACTIVE
     admin = db.scalar(select(User).where(active, User.role == Role.ADMIN).order_by(User.id))
     # A teacher with a homeroom class, so the demo shows a teacher's own classes.
@@ -43,4 +48,4 @@ def meta(db: DbDep, settings: SettingsDep, response: Response) -> Meta:
                 password=password,
             )
         )
-    return Meta(demo_mode=True, demo_accounts=accounts)
+    return Meta(demo_mode=True, demo_accounts=accounts, **_public(settings))
