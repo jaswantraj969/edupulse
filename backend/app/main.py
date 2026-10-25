@@ -11,6 +11,7 @@ from app.api.routes import (
     classes,
     dashboard,
     health,
+    risk,
     staff,
     students,
     teachers,
@@ -56,6 +57,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         attendance.router,
         assessments.router,
         catalog.router,
+        risk.router,
     )
     for router in routers:
         app.include_router(router, prefix=API_PREFIX)

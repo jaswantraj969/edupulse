@@ -83,6 +83,8 @@ jobs:
       - run: uv run ruff format --check .
       - run: uv run mypy edupulse_ml tests
       - run: uv run pytest --cov
+      - name: Reproduce the published model run (downloads the UCI data, verifies SHA-256)
+        run: uv run python -m edupulse_ml.reproduce
 
   frontend:
     runs-on: ubuntu-latest

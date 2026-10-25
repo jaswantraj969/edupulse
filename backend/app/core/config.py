@@ -36,6 +36,8 @@ class Settings(BaseSettings):
     cookie_secure: bool = False
 
     model_dir: Path = BACKEND_DIR / "model"
+    # True while the database holds synthetic demo data: risk scores are then labelled as demo.
+    demo_mode: bool = True
     log_level: str = "INFO"
     log_json: bool = True
 

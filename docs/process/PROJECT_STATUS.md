@@ -10,7 +10,7 @@ its output recorded in `REVIEW_PACKET.md`; it is not a claim of external verific
 | M2 Auth + security | done | see git log (M2) |
 | M3 Core API | done | see git log (M3) |
 | M4 Frontend core | done | see git log (M4) |
-| M5 ML early-warning | not started | — |
+| M5 ML early-warning | done | see git log (M5) |
 | M6 ML in the UI | not started | — |
 | M7 Hardening | not started | — |
 | M8 Docs + release | not started | — |
@@ -18,7 +18,7 @@ its output recorded in `REVIEW_PACKET.md`; it is not a claim of external verific
 
 ## Resume point
 
-Start of M5 (ML early-warning module).
+Start of M6 (ML in the UI, audit log).
 
 ## Decisions
 
@@ -66,8 +66,21 @@ Start of M5 (ML early-warning module).
 | D40 | M4 | Chart series colours `#4f46e5` (light) / `#6366f1` (dark) validated with the dataviz palette checker against the actual card surfaces; single-series charts, tooltips, and a "Show data table" view. | WCAG non-text contrast ≥ 3:1 and identity never by colour alone. |
 | D41 | M4 | Frontend forms validate with Zod mirroring the API rules; server 409/422 field errors are mapped back onto the matching inputs. | Inline feedback without trusting the client. |
 | D42 | M4 | Playwright runs serially (one worker) against a seeded API; each run creates a uniquely named student and deletes it at the end. | Repeatable on a shared database. |
+| D43 | M5 | Train on both UCI course files (1,044 rows) and group splits by the dataset authors' student-matching attributes, so a student's two rows never straddle train/test. | More data than one file, without identity leakage. |
+| D44 | M5 | Model inputs limited to what EduPulse records: Term 1 average (`g1`), absences, prior failures. Age excluded as a protected characteristic (ablation: no AP gain); sex and all family/socioeconomic attributes excluded. | Deployable mapping + privacy/fairness by design. |
+| D45 | M5 | Prediction moment = end of Term 1; target = G3 < 10. G2 excluded as later information. | Matches when a school can act and what is known then. |
+| D46 | M5 | Candidates: dummy (prior), logistic regression, gradient boosting with fixed conservative settings — no hyper-parameter search. Selection: best mean CV AP, simpler within 0.01. | Avoids overfitting model choice on ~800 rows; rule fixed before testing. |
+| D47 | M5 | Bands: high = OOF recall 0.80 threshold; medium = OOF recall 0.95 threshold. | Early warning favours recall; both thresholds come from out-of-fold predictions only. |
+| D48 | M5 | Bootstrap CIs resample whole students (cluster bootstrap). | Rows are not independent when a student has two courses. |
+| D49 | M5 | Explanations by reference substitution in log-odds (training medians as reference); exact for logistic regression; implemented in ml/ and backend, cross-checked by a backend test against values recorded at training. | SHAP-equivalent for the linear model without an extra dependency. |
+| D50 | M5 | Model persisted with joblib; its SHA-256 stored in `model_meta.json` and verified before unpickling; scikit-learn version pinned identically in ml/ and backend/. | Pickle safety and version compatibility. |
+| D51 | M5 | App mapping: g1 = weight-averaged Term 1 percentage across subjects ÷ 5; absences = Term 1 "absent" days projected to the year by school-day ratio (excused not counted); students without Term 1 grades are "insufficient data". | Same features from EduPulse data; limitations stated in the model card. |
+| D52 | M5 | `EDUPULSE_DEMO_MODE` (default true) adds "Demo — synthetic data" to every risk response. | Scores on synthetic data must never look real. |
+| D53 | M5 | CI job re-downloads the dataset, verifies hashes and reproduces the committed metrics within 1e-6. | Published numbers are reproducible, not hand-copied. |
 
 ## Deviations and limitations
 
 - Login rate-limit state is per API process; a multi-instance deployment would need a shared store (e.g. Redis). (M2)
 - Academic years and terms are read-only through the API (created by the seed/migrations); a year-rollover workflow is out of scope. (M3)
+- The model is trained on 2005–06 Portuguese data and must be re-validated locally before real use; the app's averaged multi-subject G1 and projected absences are an input shift relative to training (see docs/model_card.md). (M5)
+- On the test set, gradient boosting scored slightly higher than the selected logistic regression at the threshold; the pre-registered selection was kept (CIs overlap). (M5)

@@ -1,0 +1,116 @@
+{
+  "model_version": "1.0.0",
+  "trained_at": "2026-10-25",
+  "model_type": "logistic_regression",
+  "model_sha256": "48f819e394dfefc38d982c54215781de01bfe94679fcbdff052352698a614b75",
+  "scikit_learn": "1.9.1",
+  "features": [
+    {
+      "name": "g1",
+      "source": "G1",
+      "description": "First-period grade (0-20)",
+      "app_mapping": "Weighted mean percentage of the student's Term 1 assessments across subjects / 5"
+    },
+    {
+      "name": "absences",
+      "source": "absences",
+      "description": "Number of school absences (0-93)",
+      "app_mapping": "Term 1 'absent' days extrapolated to the full year (x school days / Term 1 days)"
+    },
+    {
+      "name": "failures",
+      "source": "failures",
+      "description": "Number of past class failures (0-3)",
+      "app_mapping": "students.prior_failures"
+    }
+  ],
+  "pass_mark": 10,
+  "thresholds": {
+    "high": 0.31539298542020494,
+    "medium": 0.13415628398506782
+  },
+  "reference_values": {
+    "g1": 11.0,
+    "absences": 2.0,
+    "failures": 0.0
+  },
+  "explanation_examples": [
+    {
+      "features": {
+        "g1": 5.0,
+        "absences": 4.0,
+        "failures": 0.0
+      },
+      "probability": 0.9652801450351566,
+      "contributions": {
+        "g1": 6.040678211678535,
+        "absences": 0.07886094299683988,
+        "failures": 0.0
+      }
+    },
+    {
+      "features": {
+        "g1": 15.0,
+        "absences": 2.0,
+        "failures": 0.0
+      },
+      "probability": 0.0010888417689318588,
+      "contributions": {
+        "g1": -4.0271188077856905,
+        "absences": 0.0,
+        "failures": 0.0
+      }
+    },
+    {
+      "features": {
+        "g1": 10.0,
+        "absences": 0.0,
+        "failures": 0.0
+      },
+      "probability": 0.13394562708500185,
+      "contributions": {
+        "g1": 1.0067797019464224,
+        "absences": -0.07886094299684165,
+        "failures": 0.0
+      }
+    }
+  ],
+  "training_data": {
+    "doi": "10.24432/C5TG7T",
+    "licence": "CC BY 4.0",
+    "sha256": {
+      "student-mat.csv": "e47f9ee225e1ee6e69b7564e6dac7123e80b8486677fe111f351964cef5dec80",
+      "student-por.csv": "a7594a11d7771c0efe1a740824e0e833da9c4cad07c39a9766a874575563fb3f"
+    }
+  },
+  "evaluation": {
+    "dataset": "UCI Student Performance held-out test set (Portuguese schools, 2005-06)",
+    "test_rows": 209,
+    "average_precision": {
+      "estimate": 0.8168440003250651,
+      "ci_low": 0.7053794276107854,
+      "ci_high": 0.9014195148627988,
+      "n": 2000
+    },
+    "roc_auc": {
+      "estimate": 0.9359829287810083,
+      "ci_low": 0.9001397984255127,
+      "ci_high": 0.9660973854094064,
+      "n": 2000
+    },
+    "precision": {
+      "estimate": 0.6271186440677966,
+      "ci_low": 0.5,
+      "ci_high": 0.7397328767123287,
+      "n": 2000
+    },
+    "recall": {
+      "estimate": 0.8043478260869565,
+      "ci_low": 0.6744059656218402,
+      "ci_high": 0.9148936170212766,
+      "n": 2000
+    }
+  },
+  "prediction_moment": "end of the first grading period (G1 known; G2, G3 unknown)",
+  "intended_use": "Decision support for school staff; never an automatic sanction."
+}
