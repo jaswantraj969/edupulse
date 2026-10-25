@@ -18,7 +18,7 @@ its output recorded in `REVIEW_PACKET.md`; it is not a claim of external verific
 
 ## Resume point
 
-Supervisor review T-R1 in progress (ML validity evidence, security fixes, review bundle). Repository stays private.
+T-R2 in progress: absences timing fix (pre-registered in D78). Repository stays private.
 
 ## Decisions
 
@@ -101,6 +101,7 @@ Supervisor review T-R1 in progress (ML validity evidence, security fixes, review
 | D75 | T-R1 | Refresh token only in an httpOnly, Secure, SameSite=Strict cookie; removed from login/refresh JSON; `/refresh` and `/logout` read only the cookie; `Secure` on by default; HSTS is a separate `EDUPULSE_HSTS` flag. | Page JavaScript can never read the refresh token; HSTS should not be tied to cookie flags. |
 | D76 | T-R1 | API refuses to start if the JWT secret is missing, < 32 bytes or a placeholder; the seed refuses an empty/default demo password (no auto-generated password any more). | Fail closed on unsafe configuration. |
 | D77 | T-R1 | B4: dashboard chart loading measured in three variants (3 Lighthouse runs each, Docker build): eager import 79/78/79, lazy chunk 80/82/76, lazy + render near viewport 87/84/84. None reached 90, so per the review rule the dashboard uses the simplest variant (eager import inside the route-split page). | Keep a change only if it meets the target; the +5 median from deferral is recorded should the owner want it back. |
+| D78 | T-R2 | **Pre-registration (written and pushed before any T-R2 training run).** Review finding: UCI `absences` is a whole-year count, so it is not known "after first-period grades". The deployed model drops it. New run from a NEW stratified, student-grouped 20 % holdout with seed **20261026** (previous runs used 20251025). Unchanged and fixed in advance: candidates dummy (prior) / logistic regression / gradient boosting (same settings); 3 × repeated grouped 5-fold CV on identical folds; primary metric average precision; selection = best mean CV AP, simpler model within 0.01; thresholds from out-of-fold predictions only (high = 80 % recall, medium = 95 %); test scored once via the holdout guard; 2,000 cluster-bootstrap resamples. Deployed inputs: `g1`, `failures`. Pre-term variant: `failures` only (reported even if near-trivial). Ablations: + age; g1 only. | Removes a feature-timing mismatch; a new holdout because the old one has already been scored. |
 
 ## Deviations and limitations
 
