@@ -2780,3 +2780,398 @@ GATE RESULT: PASS
 ```
 
 Bugs found while doing this review: (1) a rejected refresh never cleared the cookie (the header was set on a response the error handler discarded) — now sent with the error, covered by a test; (2) during the change my first token-reuse test helper did not attach the cookie, so tests passed for the wrong reason — caught by a coverage drop in services/auth.py and fixed (reuse branch covered again); (3) the ML test fixture never shared identities across files, so the new disjointness test could not exercise grouping — fixture fixed (200 shared synthetic students). Documentation correction: '382 students in both files' was the merge row count; 366 identity groups span both files. Counterfactual for A1 (ad-hoc check, not part of the pipeline): an ungrouped stratified split with the same seed would have put 120 shared students on both sides.
+
+## T-R2 — Absences timing fix and honest framing (2026-10-25)
+
+Scope: Pre-registered (commit ddf01df, pushed before any run): absences removed (UCI counts them over the whole year, so they are unknown after first-period grades); new grouped holdout seed 20261026; same candidates, selection rule and threshold strategy. Pre-term variant = failures only. Model v1.1.0 exported; absences removed from the scoring service, schemas, routes, CSV export, UI inputs and factor explanations (projection code deleted; attendance still shown for context). Model card, case study, README updated with the new numbers and the L1 statement; v1.0.0 runs recorded as superseded.
+
+### Run record (new holdout, seed 20261026)
+
+```text
+$ (cd ml && uv run python -m edupulse_ml.train) -> ml/reports/run_record.md (excerpt)
+- Trained: 2026-10-25 · model version 1.1.0 · scikit-learn 1.9.1
+- Data: UCI Student Performance (DOI 10.24432/C5TG7T, CC BY 4.0); 1044 rows (maths + Portuguese), 662 student groups; 230 fails (22.0%).
+- Split: 835 train / 209 test rows (46 test positives), grouped by student.
+- Prediction moment: after first-period grades (end of Term 1): G1 known; G2 and G3 unknown.
+- Target: final grade G3 < 10 (fail).
+- Features: g1, failures.
+- Chosen model: **Logistic regression** (best mean CV AP; simpler model preferred within 0.01).
+- Model file SHA-256: `0d6716084619bfa3b08a3a007454c387a2d21bd79865ad8cdda3586f56b51169`
+
+## Cross-validation (3x repeated stratified group 5-fold, training part only)
+
+| Model | Average precision | ROC AUC | Brier |
+|---|---|---|---|
+| Dummy (prior) | 0.220 ± 0.002 | 0.500 ± 0.000 | 0.172 ± 0.001 |
+| Logistic regression | 0.769 ± 0.062 | 0.933 ± 0.014 | 0.087 ± 0.011 |
+| Gradient boosting | 0.761 ± 0.067 | 0.929 ± 0.016 | 0.090 ± 0.013 |
+
+## Operating threshold (chosen on out-of-fold predictions only)
+
+- High-risk band: probability ≥ **0.327** (highest threshold with out-of-fold recall >= 0.8).
+- Medium band: probability ≥ 0.162 (95 % out-of-fold recall).
+- Out-of-fold at the high threshold: precision 0.630, recall 0.804, flag rate 0.281.
+
+## Held-out test set (scored once; 2000 cluster (student) resamples, percentile 95% CI)
+
+Threshold-based columns use the chosen model's operating threshold *t* for every row.
+
+| Model | Average precision | ROC AUC | Brier | Precision @ t | Recall @ t | F1 @ t |
+|---|---|---|---|---|---|---|
+| Dummy (prior) | 0.220 [0.164, 0.278] | 0.500 [0.500, 0.500] | 0.172 [0.140, 0.204] | 0.000 [0.000, 0.000] | 0.000 [0.000, 0.000] | 0.000 [0.000, 0.000] |
+| Logistic regression | 0.845 [0.740, 0.924] | 0.953 [0.924, 0.977] | 0.071 [0.052, 0.092] | 0.651 [0.527, 0.767] | 0.891 [0.792, 0.976] | 0.752 [0.652, 0.838] |
+| Gradient boosting | 0.855 [0.756, 0.928] | 0.956 [0.928, 0.978] | 0.071 [0.052, 0.091] | 0.627 [0.507, 0.739] | 0.913 [0.818, 0.981] | 0.743 [0.641, 0.829] |
+
+## Fairness check by sex (chosen model, high threshold)
+
+Sex is not a model input; it is used here only to compare error rates. With these group
+sizes the result is **inconclusive and is not evidence of fairness**.
+
+| Set | Group | n | Positives | Recall | Precision | Flag rate |
+|---|---|---|---|---|---|---|
+| test | F | 101 | 25 | 0.840 [0.680, 0.966] | 0.636 [0.464, 0.800] | 0.327 [0.243, 0.413] |
+| test | M | 108 | 21 | 0.952 [0.833, 1.000] | 0.667 [0.476, 0.846] | 0.278 [0.187, 0.377] |
+| test | gap F-M | | | -0.112 | -0.030 | +0.049 |
+| out_of_fold | F | 490 | 100 | 0.840 [0.767, 0.907] | 0.636 [0.555, 0.714] | 0.269 [0.229, 0.308] |
+| out_of_fold | M | 345 | 84 | 0.762 [0.672, 0.853] | 0.621 [0.526, 0.717] | 0.299 [0.248, 0.355] |
+| out_of_fold | gap F-M | | | +0.078 | +0.015 | -0.029 |
+
+## Split audit (students in both course files)
+
+- Identity attributes used for matching: 13.
+- Rows produced by the dataset documentation's merge on them: 382.
+- Identity groups: 662; groups with rows in both files: 366 (74 in the test set); groups with more than two rows (attribute collisions, kept together): 9.
+- Groups on both sides of the holdout: **0**; on both sides of any CV fold: **0** (checked for all 15 folds).
+
+Holdout access log: freeze: chosen, t_high, t_medium, t_pre_term → score: dummy_prior → score: logistic_regression → score: gradient_boosting → score: pre_term.
+
+## Pre-term variant (no period grades)
+
+Same model family, inputs failures; own threshold 0.164 (80 % out-of-fold recall); test scored once.
+
+| Model | CV average precision | Test AP | Test ROC AUC | Precision @ t | Recall @ t |
+|---|---|---|---|---|---|
+| After first-period grades (deployed) | 0.769 ± 0.062 | 0.845 [0.740, 0.924] | 0.953 [0.924, 0.977] | 0.651 [0.527, 0.767] | 0.891 [0.792, 0.976] |
+| Pre-term (no grades) | 0.399 ± 0.052 | 0.414 [0.290, 0.565] | 0.725 [0.641, 0.803] | 0.220 [0.164, 0.278] | 1.000 [1.000, 1.000] |
+
+## Permutation importance on the test set (deployed model; descriptive only)
+
+| Feature | Mean drop in AP | SD | Share | Computable by EduPulse |
+|---|---|---|---|---|
+| g1 | 0.582 | 0.037 | 99.2% | yes |
+| failures | 0.005 | 0.011 | 0.8% | yes |
+
+## Ablations (CV average precision, chosen model family)
+
+| Feature set | Average precision |
+|---|---|
+| primary (g1, failures) | 0.769 ± 0.062 |
+| + age | 0.780 ± 0.065 |
+| g1 only | 0.755 ± 0.059 |
+
+## Coefficients (log-odds per standard deviation)
+
+| Feature | Coefficient | Mean | SD |
+|---|---|---|---|
+| g1 | -2.772 | 11.20 | 2.98 |
+| failures | +0.257 | 0.23 | 0.61 |
+
+## Environment
+
+Python 3.12.13, scikit-learn 1.9.1, numpy 2.5.4, pandas 3.1.0.
+```
+
+### Reproduction check
+
+```text
+$ (cd ml && uv run python -m edupulse_ml.reproduce)
+reproduced
+
+[exit 0]
+```
+
+### Gate output (scripts/gate.sh --e2e)
+
+```text
+$ (cd backend && uv run ruff check .)
+All checks passed!
+[exit 0]
+
+$ (cd backend && uv run ruff format --check .)
+77 files already formatted
+[exit 0]
+
+$ (cd backend && uv run mypy app tests)
+Success: no issues found in 76 source files
+
+[exit 0]
+
+$ (cd backend && uv run pytest --cov --cov-report=term-missing -p no:cacheprovider)
+........................................................................ [ 39%]
+
+........................................................................ [ 79%]
+
+.....................................                                    [100%]
+
+=============================== tests coverage ================================
+
+______________ coverage: platform win32, python 3.12.13-final-0 _______________
+
+
+
+Name                            Stmts   Miss Branch BrPart  Cover   Missing
+
+---------------------------------------------------------------------------
+
+app\api\routes\assessments.py     130      1     42      2    98%   63, 177->176
+
+app\api\routes\auth.py             76      0     18      1    99%   151->157
+
+app\api\routes\catalog.py          42      0      4      1    98%   44->46
+
+app\api\routes\classes.py         152      0     40      1    99%   163->167
+
+app\api\routes\dashboard.py        55      0     20      3    96%   51->53, 73->75, 100->99
+
+app\api\routes\staff.py            64      0      6      3    96%   67->69, 69->71, 71->73
+
+app\api\routes\students.py        133      1     24      1    99%   89
+
+app\core\logging.py                35      1     10      1    96%   28
+
+app\seed.py                       208      3     64      2    98%   181-182, 464
+
+app\services\auth.py               49      1     14      2    95%   41, 92->exit
+
+app\services\csv_io.py            115      1     42      3    97%   55->57, 57->59, 89
+
+app\services\risk.py              132      2     24      2    97%   115, 177
+
+---------------------------------------------------------------------------
+
+TOTAL                            2633     10    440     22    99%
+
+
+
+39 files skipped due to complete coverage.
+
+181 passed in 82.56s (0:01:22)
+
+[exit 0]
+
+$ (cd ml && uv run ruff check .)
+All checks passed!
+[exit 0]
+
+$ (cd ml && uv run ruff format --check .)
+18 files already formatted
+[exit 0]
+
+$ (cd ml && uv run mypy edupulse_ml tests)
+Success: no issues found in 16 source files
+
+[exit 0]
+
+$ (cd ml && uv run pytest --cov -p no:cacheprovider)
+........................                                                 [100%]
+
+=============================== tests coverage ================================
+
+______________ coverage: platform win32, python 3.12.13-final-0 _______________
+
+
+
+Name                       Stmts   Miss Branch BrPart  Cover
+
+------------------------------------------------------------
+
+edupulse_ml\__init__.py        1      0      0      0   100%
+
+edupulse_ml\data.py           57      5     18      1    89%
+
+edupulse_ml\evaluate.py       45      1     12      1    96%
+
+edupulse_ml\explain.py        17      0      2      0   100%
+
+edupulse_ml\export.py         14     14      2      0     0%
+
+edupulse_ml\features.py       23      0      0      0   100%
+
+edupulse_ml\guard.py          33      0      8      0   100%
+
+edupulse_ml\report.py         49      0     24      1    99%
+
+edupulse_ml\reproduce.py      31      9     14      0    76%
+
+edupulse_ml\train.py         164      1     22      2    98%
+
+------------------------------------------------------------
+
+TOTAL                        434     30    102      5    92%
+
+24 passed in 100.16s (0:01:40)
+
+[exit 0]
+
+$ (cd frontend && npm run lint)
+
+> edupulse-web@0.1.0 lint
+> eslint . --max-warnings=0
+
+[exit 0]
+
+$ (cd frontend && npm run typecheck)
+
+> edupulse-web@0.1.0 typecheck
+> tsc -b --noEmit
+
+[exit 0]
+
+$ (cd frontend && npm test)
+
+> edupulse-web@0.1.0 test
+> vitest run
+
+
+ RUN  v5.0.5 <repo>/frontend
+
+Not implemented: navigation to another Document
+
+ Test Files  8 passed (8)
+      Tests  39 passed (39)
+   Start at  22:50:23
+   Duration  6.45s (environment 56%, tests 25%, setup 9%, import 8%, transform 1%, worker 1%)
+
+[exit 0]
+
+$ (cd frontend && npm run build)
+
+> edupulse-web@0.1.0 build
+> tsc -b && vite build
+
+vite v8.3.5 building client environment for production...
+transforming...
+✓ 780 modules transformed.
+rendering chunks...
+computing gzip size...
+dist/index.html                              0.61 kB │ gzip:   0.36 kB
+dist/assets/index-BPIhiWzY.css              38.19 kB │ gzip:   7.80 kB
+dist/assets/coerce-CHtFiwVw.js               0.09 kB │ gzip:   0.10 kB
+dist/assets/queries-JeWw-qcp.js              0.51 kB │ gzip:   0.26 kB
+dist/assets/classSchema-D5ATFxNC.js          0.57 kB │ gzip:   0.33 kB
+dist/assets/ClassPicker-DSnCATMB.js          0.66 kB │ gzip:   0.41 kB
+dist/assets/format-DqLuBCE3.js               0.66 kB │ gzip:   0.44 kB
+dist/assets/schemas-sqRQT-v-.js              0.93 kB │ gzip:   0.48 kB
+dist/assets/RecordFormDialog-Bo-Jczaa.js     1.83 kB │ gzip:   0.98 kB
+dist/assets/LoginPage-C26OYOwo.js            1.98 kB │ gzip:   1.02 kB
+dist/assets/AuditLogPage-B-GUV537.js         2.04 kB │ gzip:   1.04 kB
+dist/assets/ListToolbar-RJcYPvkn.js          2.06 kB │ gzip:   0.94 kB
+dist/assets/useMutation-Deb0CgLG.js          2.32 kB │ gzip:   0.97 kB
+dist/assets/RiskParts-Bj8qW2R7.js            2.59 kB │ gzip:   0.97 kB
+dist/assets/ClassesPage-CpFjzLnE.js          2.79 kB │ gzip:   1.32 kB
+dist/assets/CsvImportDialog-CUfTO9Ck.js      3.07 kB │ gzip:   1.32 kB
+dist/assets/DataTable-BIW-_6Lj.js            3.21 kB │ gzip:   1.23 kB
+dist/assets/StudentsListPage-BdzgxKcy.js     3.24 kB │ gzip:   1.48 kB
+dist/assets/RiskListPage-DLpqakRA.js         3.58 kB │ gzip:   1.72 kB
+dist/assets/ClassDetailPage-D3LJCU5n.js      4.61 kB │ gzip:   1.81 kB
+dist/assets/StaffPage-nBK-dE4w.js            4.67 kB │ gzip:   1.97 kB
+dist/assets/TeachersPage-mp4wdP2z.js         4.86 kB │ gzip:   2.02 kB
+dist/assets/AttendancePage-DKs3F4S5.js       4.91 kB │ gzip:   1.99 kB
+dist/assets/StudentDetailPage-ck0iCgrP.js    5.14 kB │ gzip:   1.91 kB
+dist/assets/StudentForm-Cht7dyi8.js          5.97 kB │ gzip:   2.22 kB
+dist/assets/StudentRiskPage-Q11I4Vh3.js      6.49 kB │ gzip:   2.52 kB
+dist/assets/RiskTrendCharts-CW2vfcz7.js      6.55 kB │ gzip:   2.75 kB
+dist/assets/GradesPage-JmUp45EW.js           7.00 kB │ gzip:   2.69 kB
+dist/assets/useQuery-BtfHoks1.js             7.97 kB │ gzip:   2.94 kB
+dist/assets/jsx-runtime-Wy9s6hX0.js          8.91 kB │ gzip:   3.39 kB
+dist/assets/DashboardPage-zBB1LJ7B.js       26.35 kB │ gzip:   8.85 kB
+dist/assets/Field-BARBEQsd.js              124.54 kB │ gzip:  37.53 kB
+dist/assets/useElementWidth-BBOHSNBM.js    347.70 kB │ gzip: 101.49 kB
+dist/assets/index-D2AyGGwc.js              352.85 kB │ gzip: 110.95 kB
+
+✓ built in 674ms
+[exit 0]
+
+$ (cd frontend && npx playwright test --reporter=list)
+
+Running 10 tests using 1 worker
+
+(node:21276) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+[axe] light login: 29 rules passed; violations: none
+[axe] light dashboard: 31 rules passed; violations: none
+[axe] light students: 38 rules passed; violations: none
+[axe] light student detail: 42 rules passed; violations: none
+[axe] light student form: 35 rules passed; violations: none
+[axe] light teachers: 39 rules passed; violations: none
+[axe] light staff: 39 rules passed; violations: none
+[axe] light classes: 36 rules passed; violations: none
+[axe] light class detail: 34 rules passed; violations: none
+[axe] light attendance: 36 rules passed; violations: none
+[axe] light grades: 36 rules passed; violations: none
+[axe] light early warning: 42 rules passed; violations: none
+[axe] light student risk: 39 rules passed; violations: none
+[axe] light audit log: 38 rules passed; violations: none
+  ok  1 [mobile-375] › e2e\a11y.spec.ts:58:3 › no serious accessibility violations (light mode) (33.0s)
+[axe] dark login: 29 rules passed; violations: none
+[axe] dark dashboard: 31 rules passed; violations: none
+[axe] dark students: 38 rules passed; violations: none
+[axe] dark student detail: 42 rules passed; violations: none
+[axe] dark student form: 35 rules passed; violations: none
+[axe] dark teachers: 39 rules passed; violations: none
+[axe] dark staff: 39 rules passed; violations: none
+[axe] dark classes: 36 rules passed; violations: none
+[axe] dark class detail: 34 rules passed; violations: none
+[axe] dark attendance: 36 rules passed; violations: none
+[axe] dark grades: 36 rules passed; violations: none
+[axe] dark early warning: 42 rules passed; violations: none
+[axe] dark student risk: 39 rules passed; violations: none
+[axe] dark audit log: 38 rules passed; violations: none
+  ok  2 [mobile-375] › e2e\a11y.spec.ts:58:3 › no serious accessibility violations (dark mode) (31.9s)
+  ok  3 [mobile-375] › e2e\core-flow.spec.ts:8:1 › login → add student → mark attendance → enter grade (4.5s)
+  ok  4 [mobile-375] › e2e\early-warning.spec.ts:4:1 › teacher reviews early-warning scores; the views are audited (7.1s)
+  -   5 [mobile-375] › e2e\screenshots.spec.ts:28:1 › documentation screenshots
+(node:4284) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+[axe] light login: 29 rules passed; violations: none
+[axe] light dashboard: 29 rules passed; violations: none
+[axe] light students: 37 rules passed; violations: none
+[axe] light student detail: 40 rules passed; violations: none
+[axe] light student form: 33 rules passed; violations: none
+[axe] light teachers: 38 rules passed; violations: none
+[axe] light staff: 38 rules passed; violations: none
+[axe] light classes: 34 rules passed; violations: none
+[axe] light class detail: 32 rules passed; violations: none
+[axe] light attendance: 34 rules passed; violations: none
+[axe] light grades: 34 rules passed; violations: none
+[axe] light early warning: 41 rules passed; violations: none
+[axe] light student risk: 38 rules passed; violations: none
+[axe] light audit log: 37 rules passed; violations: none
+  ok  6 [desktop-1440] › e2e\a11y.spec.ts:58:3 › no serious accessibility violations (light mode) (31.7s)
+[axe] dark login: 29 rules passed; violations: none
+[axe] dark dashboard: 29 rules passed; violations: none
+[axe] dark students: 37 rules passed; violations: none
+[axe] dark student detail: 40 rules passed; violations: none
+[axe] dark student form: 33 rules passed; violations: none
+[axe] dark teachers: 38 rules passed; violations: none
+[axe] dark staff: 38 rules passed; violations: none
+[axe] dark classes: 34 rules passed; violations: none
+[axe] dark class detail: 32 rules passed; violations: none
+[axe] dark attendance: 34 rules passed; violations: none
+[axe] dark grades: 34 rules passed; violations: none
+[axe] dark early warning: 41 rules passed; violations: none
+[axe] dark student risk: 38 rules passed; violations: none
+[axe] dark audit log: 37 rules passed; violations: none
+  ok  7 [desktop-1440] › e2e\a11y.spec.ts:58:3 › no serious accessibility violations (dark mode) (32.7s)
+  ok  8 [desktop-1440] › e2e\core-flow.spec.ts:8:1 › login → add student → mark attendance → enter grade (5.6s)
+  ok  9 [desktop-1440] › e2e\early-warning.spec.ts:4:1 › teacher reviews early-warning scores; the views are audited (7.2s)
+  -  10 [desktop-1440] › e2e\screenshots.spec.ts:28:1 › documentation screenshots
+
+  2 skipped
+  8 passed (2.7m)
+[exit 0]
+
+GATE RESULT: PASS
+```
+
+Notes: (1) The pre-term variant (failures only) collapses: four possible input values, so its 80 %-recall threshold equals the score of students without previous failures and it flags everyone (recall 1.000, precision 0.220 = base rate). (2) After the run, MODEL_VERSION was bumped from 1.0.0 to 1.1.0 and the identical pipeline re-executed; metrics.json (excluding the environment block) and the model SHA-256 were verified identical — no new decisions were made. (3) The first gate run failed on the e2e assertion of 3 risk factors; it now asserts exactly 2 and that none mention absences. (4) The first-term grade carries 99.2 % of test-set permutation importance.

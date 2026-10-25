@@ -8,6 +8,8 @@ The early warning is **decision support**: every score comes with its reasons in
 a visible reminder to review it with the student's context, and an audit trail. It is never an
 automatic sanction.
 
+> **What the early warning really is.** The first-term grade carries almost all of the predictive signal (99.2 % of the deployed model's permutation importance on the test set). Without any grade the model is weak: a model using only previous failures reaches a test average precision of 0.414 [95 % CI 0.290, 0.565] and, at the 80 % recall target, flags every student. The tool mainly organises and explains a signal teachers can already see.
+
 > **Demo data only.** Everything this repository loads into the database is synthetic
 > (generated with a fixed seed). The early-warning model was trained on a public research
 > dataset from Portuguese secondary schools and must be re-validated before any real use.
@@ -31,6 +33,7 @@ More in [`docs/screenshots/`](docs/screenshots/) (login, students, grades, dark 
   view).
 - **Early warning:** per-class risk list (sortable), per-student panel with risk band, the
   factors behind it, attendance and grade trends with the prediction moment marked; CSV export.
+  The estimate uses only the Term 1 average and previous failures.
 - **Roles:** administrators see everything; teachers see only their own classes and students
   and can change grades only for subjects they teach.
 - **Security:** argon2 passwords, short-lived JWT access tokens + rotating httpOnly refresh
@@ -104,14 +107,15 @@ Numbers from [`ml/reports/run_record.md`](ml/reports/run_record.md) (reproduced 
 | | |
 |---|---|
 | Data | UCI Student Performance (Cortez & Silva, 2008; CC BY 4.0): 1,044 course records, 662 students, 22.0 % fail |
-| Prediction moment | After first-period grades (end of Term 1); later grades never used |
-| Inputs | Term 1 average, absences, previous-year failures (no sex, age or family/socio-economic data) |
-| Model | Logistic regression, chosen over gradient boosting by a pre-declared rule |
-| Cross-validated average precision | 0.803 ± 0.057 (dummy baseline 0.220 ± 0.002) |
-| Held-out test (scored once) | AP **0.817** [95 % CI 0.705–0.901], ROC AUC 0.936 [0.900–0.966] |
-| At the "high risk" threshold (0.315) | recall 0.804 [0.674–0.915], precision 0.627 [0.500–0.740] |
-| Fairness check (sex, not an input) | recall F 0.833 [0.682, 0.952] (n=128, 30 fails) vs M 0.750 [0.500, 0.945] (n=81, 16 fails): inconclusive, not evidence of fairness |
-| Without period grades (pre-term variant, not served) | test AP 0.489 [0.361, 0.646] |
+| Prediction moment | After first-period grades (end of Term 1); later grades and whole-year absences never used |
+| Inputs | Term 1 average and previous-year failures only (no attendance, sex, age or family/socio-economic data) |
+| Model | Logistic regression v1.1.0, chosen over gradient boosting by a pre-registered rule; new holdout after review T-R2 |
+| Cross-validated average precision | 0.769 ± 0.062 (dummy baseline 0.220 ± 0.002) |
+| Held-out test (scored once) | AP **0.845** [95 % CI 0.740–0.924], ROC AUC 0.953 [0.924–0.977] |
+| At the "high risk" threshold (0.327) | recall 0.891 [0.792–0.976], precision 0.651 [0.527–0.767] |
+| Importance (test set) | Term 1 average 99.2 %, previous failures 0.8 % |
+| Without any grade (failures only; not served) | test AP 0.414 [0.290–0.565]; flags every student at 80 % recall |
+| Fairness check (sex, not an input) | test recall F 0.840 [0.680–0.966] (n=101, 25 fails) vs M 0.952 [0.833–1.000] (n=108, 21 fails): inconclusive, not evidence of fairness |
 
 Read the [model card](docs/model_card.md) before relying on any score, and the
 [case study](docs/case_study.md) for how it was built.
@@ -141,8 +145,8 @@ PostgreSQL 16, the ML reproduction check, Playwright with axe, and dependency au
 
 ## Limitations
 
-- The model reflects 2005–06 Portuguese data; EduPulse's inputs are computed slightly
-  differently (multi-subject average, projected absences). Re-validate locally before real use.
+- The model reflects 2005–06 Portuguese data; EduPulse's Term 1 average is a multi-subject
+  average rather than a per-course grade. Re-validate locally before real use.
 - Only one academic year is active at a time; there is no year-rollover workflow.
 - The login rate limiter is per process; multiple API replicas need a shared store.
 - No HTTPS termination in the compose setup; enable `EDUPULSE_HSTS` behind TLS.

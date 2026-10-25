@@ -1,8 +1,8 @@
 {
-  "model_version": "1.0.0",
+  "model_version": "1.1.0",
   "trained_at": "2026-10-25",
   "model_type": "logistic_regression",
-  "model_sha256": "48f819e394dfefc38d982c54215781de01bfe94679fcbdff052352698a614b75",
+  "model_sha256": "0d6716084619bfa3b08a3a007454c387a2d21bd79865ad8cdda3586f56b51169",
   "scikit_learn": "1.9.1",
   "features": [
     {
@@ -12,14 +12,6 @@
       "app_mapping": "Weighted mean percentage of the student's Term 1 assessments across subjects / 5",
       "app_computable": true,
       "justification": "School record; the strongest signal and what teachers already act on."
-    },
-    {
-      "name": "absences",
-      "source": "absences",
-      "description": "Number of school absences (0-93)",
-      "app_mapping": "Term 1 'absent' days extrapolated to the full year (x school days / Term 1 days)",
-      "app_computable": true,
-      "justification": "School attendance record; something the school can act on."
     },
     {
       "name": "failures",
@@ -32,52 +24,45 @@
   ],
   "pass_mark": 10,
   "thresholds": {
-    "high": 0.31539298542020494,
-    "medium": 0.13415628398506782
+    "high": 0.32690858565038566,
+    "medium": 0.16174674472564432
   },
   "reference_values": {
     "g1": 11.0,
-    "absences": 2.0,
     "failures": 0.0
   },
   "explanation_examples": [
     {
       "features": {
-        "g1": 5.0,
-        "absences": 4.0,
-        "failures": 0.0
-      },
-      "probability": 0.9652801450351566,
-      "contributions": {
-        "g1": 6.040678211678535,
-        "absences": 0.07886094299683988,
-        "failures": 0.0
-      }
-    },
-    {
-      "features": {
         "g1": 15.0,
-        "absences": 2.0,
         "failures": 0.0
       },
-      "probability": 0.0010888417689318588,
+      "probability": 0.0018777732236129475,
       "contributions": {
-        "g1": -4.0271188077856905,
-        "absences": 0.0,
+        "g1": -3.725831824767879,
         "failures": 0.0
       }
     },
     {
       "features": {
-        "g1": 10.0,
-        "absences": 0.0,
+        "g1": 14.0,
         "failures": 0.0
       },
-      "probability": 0.13394562708500185,
+      "probability": 0.0047524502865943265,
       "contributions": {
-        "g1": 1.0067797019464224,
-        "absences": -0.07886094299684165,
+        "g1": -2.794373868575909,
         "failures": 0.0
+      }
+    },
+    {
+      "features": {
+        "g1": 6.0,
+        "failures": 3.0
+      },
+      "probability": 0.9667736541724764,
+      "contributions": {
+        "g1": 4.657289780959849,
+        "failures": 1.2632888031712275
       }
     }
   ],
@@ -93,27 +78,27 @@
     "dataset": "UCI Student Performance held-out test set (Portuguese schools, 2005-06)",
     "test_rows": 209,
     "average_precision": {
-      "estimate": 0.8168440003250651,
-      "ci_low": 0.7053794276107854,
-      "ci_high": 0.9014195148627988,
+      "estimate": 0.844966341303746,
+      "ci_low": 0.7403861784529361,
+      "ci_high": 0.9238200631257055,
       "n": 2000
     },
     "roc_auc": {
-      "estimate": 0.9359829287810083,
-      "ci_low": 0.9001397984255127,
-      "ci_high": 0.9660973854094064,
+      "estimate": 0.9533208855694852,
+      "ci_low": 0.9244463187789326,
+      "ci_high": 0.9768518966258328,
       "n": 2000
     },
     "precision": {
-      "estimate": 0.6271186440677966,
-      "ci_low": 0.5,
-      "ci_high": 0.7397328767123287,
+      "estimate": 0.6507936507936508,
+      "ci_low": 0.5272727272727272,
+      "ci_high": 0.7666666666666667,
       "n": 2000
     },
     "recall": {
-      "estimate": 0.8043478260869565,
-      "ci_low": 0.6744059656218402,
-      "ci_high": 0.9148936170212766,
+      "estimate": 0.8913043478260869,
+      "ci_low": 0.7916666666666666,
+      "ci_high": 0.976204318936877,
       "n": 2000
     }
   },

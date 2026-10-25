@@ -76,7 +76,7 @@ def test_run_follows_protocol(result: dict[str, object]) -> None:
     assert {"F", "M", "gap_F_minus_M"} <= set(fairness["test"])
     ablations = result["ablations_cv_average_precision"]
     assert isinstance(ablations, dict)
-    assert len(ablations) == 4
+    assert set(ablations) == {"primary (g1, failures)", "+ age", "g1 only"}
 
 
 def test_split_is_disjoint_and_holdout_scored_once(result: dict[str, object]) -> None:
@@ -96,11 +96,11 @@ def test_split_is_disjoint_and_holdout_scored_once(result: dict[str, object]) ->
 def test_pre_term_variant_and_importance(result: dict[str, object]) -> None:
     pre = result["pre_term_variant"]
     assert isinstance(pre, dict)
-    assert pre["features"] == ["absences", "failures"]
+    assert pre["features"] == ["failures"]
     assert set(pre["test"]) >= {"average_precision", "recall", "precision"}
     importance = result["permutation_importance_test"]
     assert isinstance(importance, dict)
-    assert set(importance) == {"g1", "absences", "failures"}
+    assert set(importance) == {"g1", "failures"}
     assert all(v["app_computable"] for v in importance.values())
     assert abs(sum(v["share"] for v in importance.values()) - 1) < 1e-9
 
@@ -110,10 +110,10 @@ def test_write_outputs(result: dict[str, object], tmp_path: Path) -> None:
     meta = json.loads((tmp_path / "artifacts" / "model_meta.json").read_text())
     model_bytes = (tmp_path / "artifacts" / "model.joblib").read_bytes()
     assert meta["model_sha256"] == data.sha256(model_bytes)
-    assert [f["name"] for f in meta["features"]] == ["g1", "absences", "failures"]
+    assert [f["name"] for f in meta["features"]] == ["g1", "failures"]
     assert "never an automatic sanction" in meta["intended_use"]
     model = joblib.load(tmp_path / "artifacts" / "model.joblib")
-    proba = model.predict_proba(pd.DataFrame([{"g1": 6.0, "absences": 10.0, "failures": 2.0}]))
+    proba = model.predict_proba(pd.DataFrame([{"g1": 6.0, "failures": 2.0}]))
     assert proba.shape == (1, 2)
     metrics = json.loads((tmp_path / "reports" / "metrics.json").read_text())
     assert "_model" not in metrics

@@ -42,5 +42,6 @@ docs/      Process records, model card, case study, screenshots
 - Postgres 16 in Docker for development and runtime; SQLite in-memory only inside the test suite.
 - Authorisation model: a teacher "owns" a class if they are its homeroom teacher or teach any
   subject in it. All teacher-scoped queries filter through that relation.
-- The ML model only uses features that EduPulse itself records (first-period grade, absences,
-  prior failures, age). Protected and socioeconomic attributes are never model inputs.
+- The ML model only uses features that EduPulse itself records and that are known at the
+  prediction moment: first-period grade and prior failures (whole-year absences were removed in
+  review T-R2). Protected and socioeconomic attributes are never model inputs.

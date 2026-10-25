@@ -1,16 +1,16 @@
 """Early-warning risk scores computed from EduPulse's own data with the persisted model.
 
 The model (``backend/model/model.joblib``, produced by ``ml/``) was trained on the UCI Student
-Performance data with three inputs, all of which EduPulse records itself:
+Performance data with two inputs, both of which EduPulse records itself:
 
 * ``g1``       - first-period grade on the 0-20 scale. Here: the weight-averaged percentage of
                  the student's Term 1 assessments across all subjects, divided by 5.
-* ``absences`` - school absences over the year. Here: days marked "absent" in Term 1,
-                 extrapolated to the whole year by the ratio of school days (year / Term 1).
 * ``failures`` - past year failures (0-3), from ``students.prior_failures``.
 
-The prediction moment is the end of Term 1, matching the training set-up (G1 known, later
-grades unknown). Scores are decision support for staff, never an automatic sanction.
+The prediction moment is after first-period grades (end of Term 1). Absences are not an input:
+the UCI count covers the whole year and so is not known at that moment (review T-R2).
+Attendance is still shown in the app, just not used for the score. Scores are decision support
+for staff, never an automatic sanction.
 """
 
 from __future__ import annotations
@@ -20,7 +20,6 @@ import json
 import math
 from collections.abc import Iterable
 from dataclasses import dataclass, field
-from datetime import date, timedelta
 from functools import lru_cache
 from pathlib import Path
 from typing import Any, Literal
@@ -30,17 +29,9 @@ import pandas as pd
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
-from app.models import (
-    AcademicYear,
-    Assessment,
-    AttendanceRecord,
-    AttendanceStatus,
-    Grade,
-    Student,
-    Term,
-)
+from app.models import AcademicYear, Assessment, Grade, Student, Term
 
-FEATURES = ("g1", "absences", "failures")
+FEATURES = ("g1", "failures")
 EPS = 1e-6
 Band = Literal["high", "medium", "low"]
 
@@ -100,21 +91,10 @@ def load_model(model_dir: Path) -> RiskModel:
 # --- feature computation ----------------------------------------------------------------------
 
 
-def school_days(start: date, end: date) -> int:
-    days, current = 0, start
-    while current <= end:
-        if current.weekday() < 5:
-            days += 1
-        current += timedelta(days=1)
-    return days
-
-
 @dataclass
 class StudentFeatures:
     student_id: int
     g1: float | None
-    absences_term1: int
-    absences_projected: float
     failures: int
     assessments_term1: int
 
@@ -125,7 +105,6 @@ class StudentFeatures:
     def as_row(self) -> dict[str, float]:
         return {
             "g1": float(self.g1 if self.g1 is not None else math.nan),
-            "absences": self.absences_projected,
             "failures": float(self.failures),
         }
 
@@ -143,9 +122,6 @@ def compute_features(
     student_list = list(students)
     ids = [s.id for s in student_list]
     term = first_term(year)
-    year_days = sum(school_days(t.start_date, t.end_date) for t in year.terms)
-    term_days = school_days(term.start_date, term.end_date)
-    factor = year_days / term_days if term_days else 1.0
 
     weighted = Grade.score / Assessment.max_score * 100 * Assessment.weight
     grade_rows = db.execute(
@@ -159,26 +135,13 @@ def compute_features(
         for sid, total, weights, n in grade_rows
         if weights
     }
-    absent_rows = db.execute(
-        select(AttendanceRecord.student_id, func.count())
-        .where(
-            AttendanceRecord.student_id.in_(ids),
-            AttendanceRecord.status == AttendanceStatus.ABSENT,
-            AttendanceRecord.date.between(term.start_date, term.end_date),
-        )
-        .group_by(AttendanceRecord.student_id)
-    ).all()
-    absences = {row[0]: row[1] for row in absent_rows}
 
     out = {}
     for s in student_list:
         g1, n = grades.get(s.id, (None, 0))
-        absent = absences.get(s.id, 0)
         out[s.id] = StudentFeatures(
             student_id=s.id,
             g1=round(g1, 2) if g1 is not None else None,
-            absences_term1=absent,
-            absences_projected=round(absent * factor, 1),
             failures=s.prior_failures,
             assessments_term1=n,
         )
@@ -228,11 +191,6 @@ def _describe(name: str, feats: StudentFeatures, reference: float, raises: bool)
         return (
             f"Term 1 average of {g1:.1f}/20 ({g1 * 5:.0f}%) is {relation} the typical "
             f"{reference:.0f}/20; this {effect} the estimate."
-        )
-    if name == "absences":
-        return (
-            f"{feats.absences_term1} absence(s) in Term 1, about {feats.absences_projected:.0f} "
-            f"over a full year (typical: {reference:.0f}); this {effect} the estimate."
         )
     if feats.failures == 0:
         return f"No previous school-year failures; this {effect} the estimate."

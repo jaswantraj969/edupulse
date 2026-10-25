@@ -1,5 +1,10 @@
 # EduPulse — Final report (v1.0.0)
 
+> **Superseded ML figures.** This report documents the v1.0.0 release. Its ML results used
+> whole-year absences as an input, which review T-R2 found unavailable at the prediction moment.
+> Current figures (model v1.1.0, new holdout) are in `docs/model_card.md`; the review history
+> is in `REVIEW_PACKET.md` (T-R1, T-R2).
+
 Prepared for supervisor review. Repository: <https://github.com/jaswantraj969/edupulse>
 (**private**; not published). Full command output for every gate is in
 [`REVIEW_PACKET.md`](REVIEW_PACKET.md); decisions are in [`PROJECT_STATUS.md`](PROJECT_STATUS.md).

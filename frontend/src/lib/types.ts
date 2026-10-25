@@ -257,8 +257,6 @@ export interface RiskModelInfo {
 
 export interface RiskInputs {
   g1: number | null
-  absences_term1: number
-  absences_projected: number
   failures: number
   assessments_term1: number
 }

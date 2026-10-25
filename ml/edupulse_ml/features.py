@@ -37,13 +37,6 @@ FEATURES = [
         justification="School record; the strongest signal and what teachers already act on.",
     ),
     Feature(
-        "absences",
-        "absences",
-        "Number of school absences (0-93)",
-        "Term 1 'absent' days extrapolated to the full year (x school days / Term 1 days)",
-        justification="School attendance record; something the school can act on.",
-    ),
-    Feature(
         "failures",
         "failures",
         "Number of past class failures (0-3)",
@@ -53,8 +46,9 @@ FEATURES = [
 ]
 FEATURE_NAMES = [f.name for f in FEATURES]
 
-# Never model inputs. Grades after the prediction moment (leakage):
-LEAKAGE = ["G2", "G3"]
+# Never model inputs: information not available at the prediction moment. G2/G3 are later
+# grades; `absences` is a whole-year count in the UCI data (removed in review T-R2).
+LEAKAGE = ["G2", "G3", "absences"]
 # Protected attributes and family/socioeconomic proxies judged sensitive:
 EXCLUDED_SENSITIVE = [
     "sex",

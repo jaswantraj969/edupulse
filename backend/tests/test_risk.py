@@ -45,7 +45,7 @@ def test_backend_reproduces_training_explanations(model: risk.RiskModel) -> None
     assert examples
     for example in examples:
         x = example["features"]
-        feats = risk.StudentFeatures(1, x["g1"], 0, x["absences"], int(x["failures"]), 2)
+        feats = risk.StudentFeatures(1, x["g1"], int(x["failures"]), 2)
         result = risk.score_students(model, {1: feats})[1]
         assert result.probability == pytest.approx(example["probability"], abs=1e-4)
         got = {fac.feature: fac.contribution for fac in result.factors}
@@ -66,9 +66,7 @@ def test_tampered_or_missing_model_is_refused(tmp_path: Path) -> None:
 
 
 def test_risk_rises_as_grades_fall(model: risk.RiskModel) -> None:
-    feats = {
-        i: risk.StudentFeatures(i, g1, 0, 2.0, 0, 4) for i, g1 in enumerate([16.0, 11.0, 7.0, 4.0])
-    }
+    feats = {i: risk.StudentFeatures(i, g1, 0, 4) for i, g1 in enumerate([16.0, 11.0, 7.0, 4.0])}
     probs = [risk.score_students(model, feats)[i].probability for i in range(4)]
     assert probs == sorted(probs)  # type: ignore[type-var]
     assert risk.score_students(model, feats)[3].band == "high"
@@ -76,7 +74,7 @@ def test_risk_rises_as_grades_fall(model: risk.RiskModel) -> None:
 
 
 def test_factors_are_sorted_and_described(model: risk.RiskModel) -> None:
-    feats = {1: risk.StudentFeatures(1, 6.5, 6, 22.4, 2, 8)}
+    feats = {1: risk.StudentFeatures(1, 6.5, 2, 8)}
     result = risk.score_students(model, feats)[1]
     assert result.status == "scored"
     magnitudes = [abs(fac.contribution) for fac in result.factors]
@@ -84,27 +82,22 @@ def test_factors_are_sorted_and_described(model: risk.RiskModel) -> None:
     texts = {fac.feature: fac.text for fac in result.factors}
     assert "6.5/20 (32%) is below the typical" in texts["g1"]
     assert texts["g1"].endswith("raises the estimate.")
-    assert "6 absence(s) in Term 1, about 22 over a full year" in texts["absences"]
+    assert set(texts) == {"g1", "failures"}  # absences are not a model input
     assert "Failed 2 previous school years" in texts["failures"]
-    good = risk.score_students(model, {2: risk.StudentFeatures(2, 17.0, 0, 0.0, 0, 8)})[2]
+    good = risk.score_students(model, {2: risk.StudentFeatures(2, 17.0, 0, 8)})[2]
     good_texts = {fac.feature: fac.text for fac in good.factors}
     assert "at or above" in good_texts["g1"]
     assert "No previous school-year failures" in good_texts["failures"]
-    one = risk.score_students(model, {3: risk.StudentFeatures(3, 9.0, 0, 0.0, 1, 8)})[3]
+    one = risk.score_students(model, {3: risk.StudentFeatures(3, 9.0, 1, 8)})[3]
     assert any("Failed 1 previous school year;" in fac.text for fac in one.factors)
 
 
 def test_insufficient_data_without_term1_grades(model: risk.RiskModel) -> None:
-    result = risk.score_students(model, {1: risk.StudentFeatures(1, None, 3, 10.0, 0, 0)})[1]
+    result = risk.score_students(model, {1: risk.StudentFeatures(1, None, 0, 0)})[1]
     assert result.status == "insufficient_data"
     assert result.probability is None
     assert result.factors == []
     assert risk.score_students(model, {}) == {}
-
-
-def test_school_days() -> None:
-    assert risk.school_days(date(2025, 9, 8), date(2025, 9, 14)) == 5  # Mon..Sun
-    assert risk.school_days(date(2025, 9, 13), date(2025, 9, 14)) == 0
 
 
 def _assignment(db: Session, school: School) -> TeachingAssignment:
@@ -133,8 +126,7 @@ def test_compute_features_from_app_records(db: Session, school: School) -> None:
     for day, status in [
         (date(2025, 9, 8), AttendanceStatus.ABSENT),
         (date(2025, 9, 9), AttendanceStatus.ABSENT),
-        (date(2025, 9, 10), AttendanceStatus.EXCUSED),  # not counted as an absence
-        (date(2026, 1, 12), AttendanceStatus.ABSENT),  # Term 2: after the prediction moment
+        (date(2025, 9, 10), AttendanceStatus.EXCUSED),
     ]:
         db.add(
             AttendanceRecord(
@@ -147,11 +139,9 @@ def test_compute_features_from_app_records(db: Session, school: School) -> None:
     b = feats[student.id]
     assert b.g1 == pytest.approx((0.5 * 1 + 0.7 * 3) / 4 * 100 / 5)  # 13.0
     assert b.assessments_term1 == 2
-    assert b.absences_term1 == 2
-    year_days = sum(risk.school_days(t.start_date, t.end_date) for t in year.terms)
-    term_days = risk.school_days(term1.start_date, term1.end_date)
-    assert b.absences_projected == pytest.approx(round(2 * year_days / term_days, 1))
     assert b.failures == 2
+    # Attendance is recorded but is not a model input (UCI absences are whole-year; T-R2).
+    assert set(b.as_row()) == {"g1", "failures"}
     assert feats[school.student_a.id].g1 is None
     assert not feats[school.student_a.id].complete
 
@@ -224,7 +214,6 @@ def test_student_risk_endpoint(client: TestClient, db: Session, school: School) 
     assert body["factors"][0]["feature"] == "g1"
     assert {fac["label"] for fac in body["factors"]} == {
         "Term 1 average",
-        "Absences",
         "Previous failures",
     }
     assert body["inputs"]["assessments_term1"] == 1
@@ -274,5 +263,5 @@ def test_model_unavailable_returns_503(
 
 
 def test_probabilities_frame_order(model: risk.RiskModel) -> None:
-    frame = pd.DataFrame([{"failures": 0.0, "g1": 12.0, "absences": 1.0}])  # columns shuffled
+    frame = pd.DataFrame([{"failures": 0.0, "g1": 12.0, "extra": 1.0}])  # columns shuffled
     assert 0 < model.probabilities(frame)[0] < 1

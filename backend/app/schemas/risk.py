@@ -34,8 +34,6 @@ class RiskFactor(BaseModel):
 
 class RiskInputs(BaseModel):
     g1: float | None = Field(description="Term 1 average on the 0-20 scale")
-    absences_term1: int
-    absences_projected: float
     failures: int
     assessments_term1: int
 

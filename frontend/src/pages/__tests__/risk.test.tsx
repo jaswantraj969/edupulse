@@ -25,7 +25,7 @@ const model: RiskModelInfo = {
   disclaimer: 'Decision support only. Review with the student\'s context before acting; never use this score as an automatic sanction.',
   data_notice: 'Demo — synthetic data. Scores are illustrative and refer to no real student.',
 }
-const inputs = { g1: 7.2, absences_term1: 5, absences_projected: 12.3, failures: 1, assessments_term1: 4 }
+const inputs = { g1: 7.2, failures: 1, assessments_term1: 4 }
 const classRisk: ClassRisk = {
   class_id: 3,
   class_name: '10-C',

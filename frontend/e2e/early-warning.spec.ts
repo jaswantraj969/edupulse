@@ -38,7 +38,8 @@ test('teacher reviews early-warning scores; the views are audited', async ({ pag
     await expect(page.getByRole('heading', { level: 2, name: 'What drives this estimate' })).toBeVisible()
     await expect(page.getByRole('note')).toContainText("review with the student's context")
     const factors = page.getByRole('region', { name: 'What drives this estimate' }).getByRole('listitem')
-    await expect(factors).toHaveCount(3)
+    await expect(factors).toHaveCount(2) // Term 1 average and previous failures
+    await expect(factors.filter({ hasText: /absence/i })).toHaveCount(0)
     await expect(factors.first()).toContainText(/Raises|Lowers/)
     await expect(page.getByText(/(High|Medium|Low) risk/)).toBeVisible()
     await expect(page.getByRole('region', { name: 'Attendance and grade trend' })).toBeVisible()

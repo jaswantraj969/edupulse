@@ -1,15 +1,21 @@
 # Case study: an explainable early-warning model for EduPulse
 
+> **The honest summary.** The first-term grade carries almost all of the predictive signal
+> (99.2 % of the deployed model's permutation importance on the test set). Without any grade the
+> model is weak: using only previous failures it reaches a test average precision of 0.414
+> [95 % CI 0.290, 0.565] and, at the 80 % recall target, flags every student. The tool mainly
+> organises and explains a signal teachers can already see.
+
 ## The question
 
 Teachers usually learn that a student is failing when the final grades come in — too late to
-help. The question for EduPulse was narrower and answerable: **at the end of the first term,
+help. The question for EduPulse was narrower and answerable: **after the first term's grades,
 using only information the school already records, can we point staff to the students most
 likely to fail the year — in a way they can understand, check and challenge?**
 
 Every figure below is copied from the generated run record
 ([`ml/reports/run_record.md`](../ml/reports/run_record.md)); CI re-runs the pipeline and fails if
-the numbers change.
+the published numbers change.
 
 ## Data
 
@@ -19,15 +25,20 @@ school year 2005–06, one file for Mathematics (395 rows) and one for Portugues
 `python -m edupulse_ml.data` downloads it and checks SHA-256 hashes recorded in
 [`ml/data/SOURCE.md`](../ml/data/SOURCE.md); the pipeline refuses to load a changed file.
 
-Two properties of the data shaped the design:
+Three properties of the data shaped the design:
 
-1. **The same student appears twice.** The dataset documentation's merge on 13 identifying attributes yields 382 matched rows; in EduPulse's grouping 370 maths rows have a Portuguese match, forming 366 identity groups that span both files (9 groups with more than two rows are attribute collisions, kept together). Splitting rows at
-   random would put a student's Maths row in training and their Portuguese row in the test set,
-   inflating results. Using the attributes the dataset authors themselves use to match students,
-   every split is **grouped by student** (662 groups).
+1. **The same student appears twice.** The dataset documentation's merge on 13 identifying
+   attributes yields 382 matched rows; in EduPulse's grouping 370 maths rows have a Portuguese
+   match, forming 366 identity groups that span both files (9 groups with more than two rows are
+   attribute collisions, kept together). Splitting rows at random would put a student's Maths row
+   in training and their Portuguese row in the test set, inflating results, so every split is
+   **grouped by student** (662 groups) and every run audits it (0 crossings).
 2. **Grades arrive in three periods** (G1, G2, G3). G3 is the final grade; G1 is known after the
-   first term. The **prediction moment is therefore after first-period grades (end of Term 1)**: G1 may be used, G2 and
-   G3 may not (G3 only defines the target: fail = G3 < 10/20, 22.0 % of rows).
+   first term. The **prediction moment is after first-period grades (end of Term 1)**: G1 may be
+   used, G2 and G3 may not (G3 only defines the target: fail = G3 < 10/20, 22.0 % of rows).
+3. **Absences are counted over the whole year.** They are therefore *not* known at the
+   prediction moment. Version 1.0.0 used them; review T-R2 found this timing mismatch and the
+   current model does not (see Protocol history).
 
 ## Choosing inputs: deployable and fair by construction
 
@@ -36,28 +47,30 @@ family size, alcohol use, romantic relationships, home internet. A model can oft
 little more accuracy out of such columns, at the cost of scoring students partly on who their
 family is.
 
-EduPulse uses **three inputs only**, all of which the app records itself:
+EduPulse uses **two inputs only**, both known at the prediction moment and recorded by the app:
 
 | Input | Meaning |
 |---|---|
 | Term 1 average (G1) | first-period grade, 0–20 |
-| Absences | school absences |
 | Previous failures | school years failed before |
 
 Sex and every family or socio-economic attribute are excluded; sex is kept aside only to *measure*
-error-rate differences. Age was considered and left out as a protected characteristic; the
-ablation showed it added nothing (CV AP 0.801 ± 0.061 with age vs 0.803 ± 0.057 without).
+error-rate differences. Age is excluded as a protected characteristic (decided before the run;
+the ablation shows CV AP 0.780 ± 0.065 with age vs 0.769 ± 0.062 without — within noise).
 
-## Evaluation protocol (decided before looking at test results)
+## Evaluation protocol (pre-registered before the current run)
 
 | Step | What was done |
 |---|---|
-| Holdout | One stratified, student-grouped 20 % test set (209 rows, 46 fails), created once with a fixed seed |
+| Holdout | A new stratified, student-grouped 20 % test set (seed 20261026; 209 rows, 46 fails), created once |
 | Model comparison | 3 × repeated stratified grouped 5-fold CV on the other 80 %; dummy baseline, logistic regression and gradient boosting on **identical folds** |
 | Metric | **Average precision** (precision–recall), suited to a minority class and to "who should we look at first" |
 | Selection rule | Best mean CV AP; a simpler model within 0.01 wins |
 | Threshold | Highest threshold reaching 80 % recall on **out-of-fold** predictions (the test set never influences it); a "medium" band at 95 % recall |
-| Final test | Refit on the 80 %, score the test set **once**, 95 % CIs from 2,000 student-level bootstrap resamples |
+| Final test | Refit on the 80 %, score the test set **once** (enforced by a holdout guard), 95 % CIs from 2,000 student-level bootstrap resamples |
+
+The plan (seed, inputs, candidates, rules) was committed and pushed before the run
+(`PROJECT_STATUS.md`, D78).
 
 ## Results
 
@@ -66,82 +79,83 @@ Cross-validation (15 folds):
 | Model | Average precision | ROC AUC |
 |---|---|---|
 | Dummy (prior) | 0.220 ± 0.002 | 0.500 ± 0.000 |
-| Logistic regression | **0.803 ± 0.057** | 0.939 ± 0.014 |
-| Gradient boosting | 0.800 ± 0.036 | 0.937 ± 0.012 |
+| Logistic regression | **0.769 ± 0.062** | 0.933 ± 0.014 |
+| Gradient boosting | 0.761 ± 0.067 | 0.929 ± 0.016 |
 
 The two real models were indistinguishable, so the rule picked **logistic regression** — easier
 to explain, with exact per-input contributions.
 
 Held-out test set, scored once:
 
-| Model | AP [95 % CI] | Recall @ 0.315 | Precision @ 0.315 |
-|---|---|---|---|
-| Logistic regression | **0.817 [0.705, 0.901]** | 0.804 [0.674, 0.915] | 0.627 [0.500, 0.740] |
-| Gradient boosting | 0.804 [0.678, 0.905] | 0.848 [0.735, 0.941] | 0.709 [0.585, 0.824] |
-| Dummy | 0.220 [0.166, 0.275] | 0.000 | 0.000 |
+| Model | AP [95 % CI] | ROC AUC | Recall @ 0.327 | Precision @ 0.327 |
+|---|---|---|---|---|
+| Logistic regression | **0.845 [0.740, 0.924]** | 0.953 [0.924, 0.977] | 0.891 [0.792, 0.976] | 0.651 [0.527, 0.767] |
+| Gradient boosting | 0.855 [0.756, 0.928] | 0.956 [0.928, 0.978] | 0.913 [0.818, 0.981] | 0.627 [0.507, 0.739] |
+| Dummy | 0.220 [0.164, 0.278] | 0.500 [0.500, 0.500] | 0.000 | 0.000 |
 
-In words: at the "high risk" threshold the model finds about four in five students who go on to
-fail, and about three in five students it flags do fail. Gradient boosting happened to do a little
-better at the threshold on the test set; the selection stayed as pre-registered, because choosing
-on test results would make the test estimate optimistic, and the intervals overlap widely.
+In words: at the "high risk" threshold the model finds about nine in ten of this test set's
+students who go on to fail, and about two in three students it flags do fail. The test AP comes
+from one 209-row holdout; the cross-validated AP (0.769 ± 0.062) is the steadier estimate.
+Compared with v1.0.0, CV AP dropped from 0.803 to 0.769 when absences were removed; the higher
+test AP than v1.0.0's (0.817) reflects a different holdout, not a better model.
 
-What the model learned (log-odds per standard deviation): Term 1 average **−2.98**, absences
-+0.24, previous failures +0.17. The first-term grade carries almost all the signal; without it
-(a "start of year" model) CV AP falls to 0.470 ± 0.058.
-
-## Fairness check
-
-| Set | Group | Recall | Precision |
-|---|---|---|---|
-| Test | girls (30 fails) | 0.833 [0.682, 0.952] | 0.641 [0.484, 0.780] |
-| Test | boys (16 fails) | 0.750 [0.500, 0.945] | 0.600 [0.353, 0.812] |
-| Out-of-fold | girls (95 fails) | 0.832 [0.755, 0.901] | 0.669 [0.585, 0.752] |
-| Out-of-fold | boys (89 fails) | 0.775 [0.685, 0.854] | 0.657 [0.560, 0.752] |
-
-The point estimates show the model missing failing boys somewhat more often (recall gap +0.083 on
-test, +0.056 out of fold), but with 30 and 16 test positives the intervals overlap heavily. The
-result is **inconclusive and is not evidence of fairness**: it neither confirms nor rules out a
-real difference. It is reported rather than hidden, and the model card tells staff not to read a
-low score for a boy as reassurance.
+What the model learned (log-odds per standard deviation): Term 1 average **−2.772**, previous
+failures +0.257.
 
 ## What the first-period grade is worth
 
-A pre-term variant without any period grade (absences and previous failures only), evaluated with
-the same protocol and its own out-of-fold threshold, reaches test AP 0.489 [0.361, 0.646] against
-0.817 [0.705, 0.901] for the deployed model. At the same 80 % recall its precision is 0.233
-[0.167, 0.299] versus 0.627 [0.500, 0.740]. Permutation importance on the test set attributes
-96.8 % of the deployed model's importance to `g1` — so the model is honest about its timing: it
-is a warning issued *after* first-period grades, not a prediction made from background.
+A pre-term variant without any period grade — previous failures only — evaluated with the same
+protocol and its own out-of-fold threshold, reaches CV AP 0.399 ± 0.052 and test AP 0.414
+[0.290, 0.565] (ROC AUC 0.725 [0.641, 0.803]). It **collapses to a near-trivial model**: with only
+four possible input values, its 80 %-recall threshold falls at the score of students without
+previous failures, so it flags every student (recall 1.000 [1.000, 1.000], precision 0.220
+[0.164, 0.278] = the base rate). Permutation importance on the test set attributes 99.2 % of the
+deployed model's importance to `g1` (failures 0.8 %). The model is therefore honest about its
+timing — a warning issued *after* first-period grades — and modest about its value: it ranks and
+explains what the Term 1 grades already show.
+
+## Fairness check
+
+| Set | Group | n | Fails | Recall | Precision |
+|---|---|---|---|---|---|
+| Test | girls | 101 | 25 | 0.840 [0.680, 0.966] | 0.636 [0.464, 0.800] |
+| Test | boys | 108 | 21 | 0.952 [0.833, 1.000] | 0.667 [0.476, 0.846] |
+| Out-of-fold | girls | 490 | 100 | 0.840 [0.767, 0.907] | 0.636 [0.555, 0.714] |
+| Out-of-fold | boys | 345 | 84 | 0.762 [0.672, 0.853] | 0.621 [0.526, 0.717] |
+
+The recall gap changes sign between the test set (−0.112) and the out-of-fold predictions
+(+0.078), and the intervals overlap heavily. The result is **inconclusive and is not evidence of
+fairness**: it neither confirms nor rules out a real difference.
 
 ## Protocol history
 
-| Run | When | What changed | Decisions | Discarded? |
-|---|---|---|---|---|
-| 1 | M5 | Initial protocol: grouped holdout and CV, three candidates, OOF threshold, test once | Logistic regression; thresholds 0.315 / 0.134 | No |
-| 2 | Supervisor review (T-R1) | Added a recorded split audit, a holdout guard (decisions frozen before the test set is read; each model scored once), the pre-term variant and test-set permutation importance | Unchanged: same model choice, thresholds, test metrics and model file SHA-256 | No |
+| Run | When | Inputs | Holdout seed | What happened | Status |
+|---|---|---|---|---|---|
+| 1 | M5 | g1, absences, failures | 20251025 | Initial protocol: grouped holdout and CV, three candidates, OOF threshold, test once; logistic regression, thresholds 0.315 / 0.134, test AP 0.817 | **Superseded** |
+| 2 | Review T-R1 | same | 20251025 | Added split audit (0 crossings), holdout guard, pre-term variant, test-set permutation importance; all results identical to run 1 | **Superseded** |
+| 3 | Review T-R2 | g1, failures | 20261026 (new) | Pre-registered re-run after absences were found to be a whole-year count (feature-timing mismatch); results above | Current (v1.1.0) |
 
-The review asked whether any student fell on both sides of a split. The audit, now part of every
-run, shows 0 crossings for the holdout and for each of the 15 CV folds, so no run had to be
-discarded and the original holdout remains valid. The feature set did not change in the review
-(no family or private-life attributes were ever inputs), so no re-run on a new holdout was needed.
+Runs 1–2 are superseded because one input, absences, was not available at the stated prediction
+moment. Because their holdout had already been scored, the re-run uses a new holdout rather than
+re-scoring the old one.
 
 ## From research data to the app
 
-The backend computes the same three inputs from EduPulse's own records
+The backend computes the same two inputs from EduPulse's own records
 ([`backend/app/services/risk.py`](../backend/app/services/risk.py)):
 
 - **Term 1 average** = weight-averaged percentage of all Term 1 assessments ÷ 5;
-- **absences** = Term 1 days marked *absent*, projected to a full year by the ratio of school days;
 - **previous failures** = the student's recorded prior failures.
 
-The persisted model is loaded only after its SHA-256 matches the metadata written at training.
-A backend test feeds the backend the exact rows scored in `ml/` and checks it reproduces the same
-probabilities and explanations. Students without Term 1 grades are shown as "insufficient data"
-rather than guessed at.
+Attendance is still recorded and shown in the app (student page and the trend chart next to the
+estimate) but is not part of the score. The persisted model is loaded only after its SHA-256
+matches the metadata written at training. A backend test feeds the backend the exact rows scored
+in `ml/` and checks it reproduces the same probabilities and explanations. Students without
+Term 1 grades are shown as "insufficient data" rather than guessed at.
 
 Each score is explained by **reference substitution**: how much the log-odds change if one input
 is replaced by a typical value (the training median). For logistic regression this is exact, and
-it translates directly into sentences such as "Term 1 average of 6.5/20 (33 %) is below the
+it translates directly into sentences such as "Term 1 average of 6.5/20 (32 %) is below the
 typical 11/20; this raises the estimate."
 
 ## Guard-rails in the product
@@ -158,11 +172,11 @@ typical 11/20; this raises the estimate."
 - **Different place, different time.** The model encodes two Portuguese schools in 2005–06.
   Before any real use it must be re-validated on local data (with consent and a data-protection
   assessment), and the thresholds re-chosen there.
-- **Input shift.** EduPulse averages all subjects, while the UCI G1 is per course; it projects
-  absences from Term 1, while UCI counts the whole year. Both are reasonable proxies, not identical.
+- **Input shift.** EduPulse averages all subjects, while the UCI G1 is per course.
 - **Small evaluation set** (46 test fails): wide confidence intervals.
 - **Fairness beyond sex** could not be assessed with this data, and EduPulse deliberately does not
   store sex — so local monitoring would need a separate, consented process.
-- Natural next steps: calibrate on local data, re-score each term with the latest grades, and
+- Natural next steps: calibrate on local data, re-score each term with the latest grades, use
+  in-year attendance only if it is recorded at the same moment the model is trained for, and
   measure whether flagged students who received support did better — the only metric that
   ultimately matters.

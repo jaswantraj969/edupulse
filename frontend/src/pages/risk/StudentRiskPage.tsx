@@ -77,14 +77,10 @@ export default function StudentRiskPage() {
                 {percent(r.model.thresholds.medium)}.
               </p>
               {r.inputs && (
-                <dl className="mt-4 grid grid-cols-3 gap-2 text-sm">
+                <dl className="mt-4 grid grid-cols-2 gap-2 text-sm">
                   <div className="rounded-lg bg-slate-50 p-2 dark:bg-slate-800/60">
                     <dt className="text-xs text-slate-600 dark:text-slate-400">Term 1 avg</dt>
                     <dd className="font-semibold tabular-nums">{r.inputs.g1?.toFixed(1)}/20</dd>
-                  </div>
-                  <div className="rounded-lg bg-slate-50 p-2 dark:bg-slate-800/60">
-                    <dt className="text-xs text-slate-600 dark:text-slate-400">Absences T1</dt>
-                    <dd className="font-semibold tabular-nums">{r.inputs.absences_term1}</dd>
                   </div>
                   <div className="rounded-lg bg-slate-50 p-2 dark:bg-slate-800/60">
                     <dt className="text-xs text-slate-600 dark:text-slate-400">Past failures</dt>
@@ -124,7 +120,8 @@ export default function StudentRiskPage() {
           )}
           <p className="mt-4 text-xs text-slate-600 dark:text-slate-400">
             Factors are listed by strength. They describe the model, not the student: talk to the student and their teachers
-            before drawing conclusions.
+            before drawing conclusions. The estimate uses only the Term 1 average and previous failures; attendance is shown
+            below for context but is not part of it.
           </p>
         </section>
       </div>

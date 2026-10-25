@@ -14,7 +14,7 @@ The dataset is licensed under the **Creative Commons Attribution 4.0 Internation
 (CC BY 4.0, https://creativecommons.org/licenses/by/4.0/). The raw data is not redistributed in
 this repository; `ml/edupulse_ml/data.py` downloads it from the UCI repository and verifies its
 SHA-256 checksums (`ml/data/SOURCE.md`). The trained model parameters are derived from the
-dataset. Changes made: the two course files were combined, three columns were used as model
+dataset. Changes made: the two course files were combined, two columns (G1, failures) were used as model
 inputs and the final grade was converted into a pass/fail target.
 
 ## Synthetic demo data

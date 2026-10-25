@@ -43,7 +43,9 @@ from edupulse_ml import data, evaluate, explain, features
 from edupulse_ml.evaluate import FloatArray, IntArray
 from edupulse_ml.guard import HoldoutGuard
 
-SEED = 20251025
+# Seed of the current holdout and CV folds. Runs with seed 20251025 (inputs g1, absences,
+# failures) are superseded: UCI absences are a whole-year count (review T-R2).
+SEED = 20261026
 HOLDOUT_SPLITS = 5  # one fold of five = 20 % holdout
 CV_SPLITS = 5
 CV_REPEATS = 3
@@ -51,8 +53,8 @@ TARGET_RECALL_HIGH = 0.80
 TARGET_RECALL_MEDIUM = 0.95
 SELECTION_TOLERANCE = 0.01
 BOOTSTRAP_RESAMPLES = 2000
-MODEL_VERSION = "1.0.0"
-PRE_TERM_FEATURES = ["absences", "failures"]  # no period grades at all
+MODEL_VERSION = "1.1.0"
+PRE_TERM_FEATURES = ["failures"]  # no period grades (and no later-known absences)
 IMPORTANCE_REPEATS = 50
 
 ML_DIR = Path(__file__).resolve().parents[1]
@@ -203,10 +205,9 @@ def run(raw_dir: Path = data.RAW_DIR) -> dict[str, Any]:
 
     # --- ablations (CV only, chosen model family) --------------------------------------------
     ablation_sets = {
-        "primary (g1, absences, failures)": features.FEATURE_NAMES,
+        "primary (g1, failures)": features.FEATURE_NAMES,
         "+ age": [*features.FEATURE_NAMES, "age"],
-        "- absences": ["g1", "failures"],
-        "- g1 (start-of-year, no grades)": ["absences", "failures"],
+        "g1 only": ["g1"],
     }
     ablations = {}
     for label, names in ablation_sets.items():

@@ -42,8 +42,8 @@ def synthetic_frame(n: int = 240, seed: int = 0) -> pd.DataFrame:
 def test_target_and_design_matrix_exclude_leakage() -> None:
     df = synthetic_frame()
     X = features.design_matrix(df)
-    assert list(X.columns) == ["g1", "absences", "failures"]
-    assert not {"G2", "G3", "sex", "age"} & set(X.columns)
+    assert list(X.columns) == ["g1", "failures"]
+    assert not {"G2", "G3", "sex", "age", "absences"} & set(X.columns)
     assert features.target(df).tolist() == (df["G3"] < 10).astype(int).tolist()
     assert list(features.design_matrix(df, ["g1", "age"]).columns) == ["g1", "age"]
 
@@ -52,6 +52,13 @@ def test_sensitive_attributes_are_never_features() -> None:
     sources = {f.source for f in features.FEATURES}
     assert not sources & set(features.EXCLUDED_SENSITIVE)
     assert not sources & set(features.LEAKAGE)
+
+
+def test_whole_year_absences_are_excluded() -> None:
+    # UCI absences cover the whole year, so they are unknown after first-period grades.
+    assert "absences" in features.LEAKAGE
+    assert "absences" not in features.FEATURE_NAMES
+    assert "absences" not in train.PRE_TERM_FEATURES
 
 
 def test_threshold_for_recall() -> None:

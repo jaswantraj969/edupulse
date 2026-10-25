@@ -30,7 +30,6 @@ router = APIRouter(prefix="/risk", tags=["early warning"], responses=ERROR_RESPO
 
 FEATURE_LABELS = {
     "g1": "Term 1 average",
-    "absences": "Absences",
     "failures": "Previous failures",
 }
 DEMO_NOTICE = "Demo — synthetic data. Scores are illustrative and refer to no real student."
@@ -71,8 +70,6 @@ def _inputs(f: risk.StudentFeatures | None) -> RiskInputs | None:
         return None
     return RiskInputs(
         g1=f.g1,
-        absences_term1=f.absences_term1,
-        absences_projected=f.absences_projected,
         failures=f.failures,
         assessments_term1=f.assessments_term1,
     )
@@ -193,7 +190,6 @@ def export_class_risk(
         "band",
         "probability",
         "term1_average_0_20",
-        "absences_projected",
         "prior_failures",
         "main_factor",
         "notice",
@@ -207,7 +203,6 @@ def export_class_risk(
             r.band or "",
             "" if r.probability is None else f"{r.probability:.3f}",
             "" if r.inputs is None or r.inputs.g1 is None else r.inputs.g1,
-            "" if r.inputs is None else r.inputs.absences_projected,
             "" if r.inputs is None else r.inputs.failures,
             r.top_factor or "",
             notice,
