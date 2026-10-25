@@ -347,3 +347,179 @@ Demo logins: admin@edupulse.example (admin), any teacher e-mail @ edupulse.examp
 ```
 
 Note: in the Postgres block, Alembic's INFO lines `Detected sequence named ... assuming SERIAL and omitting` and `setting up autogenerate plugin ...` were filtered with `grep -v` for length; all other lines are verbatim.
+
+## M2 — Auth + security (2026-10-25)
+
+Scope: OAuth2 password login with short-lived JWT access tokens (15 min), opaque refresh tokens stored as SHA-256 hashes and rotated on use (reuse revokes all sessions), httpOnly SameSite=Strict refresh cookie, logout, /me, admin-only register with password policy, login rate limit (per account and per client), role guards, teacher class scoping, CORS from config, consistent JSON errors. Tests cover every role boundary listed in the brief.
+
+### Gate output (scripts/gate.sh)
+
+```text
+$ (cd backend && uv run ruff check .)
+All checks passed!
+[exit 0]
+
+$ (cd backend && uv run ruff format --check .)
+44 files already formatted
+[exit 0]
+
+$ (cd backend && uv run mypy app tests)
+Success: no issues found in 43 source files
+
+[exit 0]
+
+$ (cd backend && uv run pytest --cov --cov-report=term-missing -p no:cacheprovider)
+.....................................................................    [100%]
+
+============================== warnings summary ===============================
+
+.venv\Lib\site-packages\fastapi\testclient.py:1
+
+  <repo>\backend\.venv\Lib\site-packages\fastapi\testclient.py:1: StarletteDeprecationWarning: Using `httpx` with `starlette.testclient` is deprecated; install `httpx2` instead.
+
+    from starlette.testclient import TestClient as TestClient  # noqa
+
+
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+
+=============================== tests coverage ================================
+
+______________ coverage: platform win32, python 3.12.13-final-0 _______________
+
+
+
+Name                     Stmts   Miss Branch BrPart  Cover   Missing
+
+--------------------------------------------------------------------
+
+app\api\routes\auth.py      75      0     18      1    99%   136->142
+
+app\seed.py                206      3     62      2    98%   182-183, 452
+
+app\services\auth.py        49      1     14      2    95%   41, 92->exit
+
+--------------------------------------------------------------------
+
+TOTAL                     1015      4    160      5    99%
+
+
+
+26 files skipped due to complete coverage.
+
+69 passed, 1 warning in 27.27s
+
+[exit 0]
+
+$ (cd ml && uv run ruff check .)
+All checks passed!
+[exit 0]
+
+$ (cd ml && uv run ruff format --check .)
+3 files already formatted
+[exit 0]
+
+$ (cd ml && uv run mypy edupulse_ml tests)
+Success: no issues found in 3 source files
+
+[exit 0]
+
+$ (cd ml && uv run pytest --cov -p no:cacheprovider)
+.                                                                        [100%]
+
+=============================== tests coverage ================================
+
+______________ coverage: platform win32, python 3.12.13-final-0 _______________
+
+
+
+Name                      Stmts   Miss Branch BrPart  Cover
+
+-----------------------------------------------------------
+
+edupulse_ml\__init__.py       1      0      0      0   100%
+
+-----------------------------------------------------------
+
+TOTAL                         1      0      0      0   100%
+
+1 passed in 0.07s
+
+[exit 0]
+
+$ (cd frontend && npm run lint)
+
+> edupulse-web@0.1.0 lint
+> eslint . --max-warnings=0
+
+[exit 0]
+
+$ (cd frontend && npm run typecheck)
+
+> edupulse-web@0.1.0 typecheck
+> tsc -b --noEmit
+
+[exit 0]
+
+$ (cd frontend && npm test)
+
+> edupulse-web@0.1.0 test
+> vitest run
+
+
+ RUN  v5.0.5 <repo>/frontend
+
+
+ Test Files  1 passed (1)
+      Tests  1 passed (1)
+   Start at  16:37:25
+   Duration  2.56s (environment 71%, setup 15%, tests 8%, import 2%, transform 2%, worker 1%)
+
+[exit 0]
+
+$ (cd frontend && npm run build)
+
+> edupulse-web@0.1.0 build
+> tsc -b && vite build
+
+vite v8.3.5 building client environment for production...
+transforming...
+✓ 16 modules transformed.
+rendering chunks...
+computing gzip size...
+dist/index.html                   0.53 kB │ gzip:  0.32 kB
+dist/assets/index-BmbyWbE2.css    6.50 kB │ gzip:  1.94 kB
+dist/assets/index-Cz-iWIdB.js   219.63 kB │ gzip: 68.63 kB
+
+✓ built in 246ms
+[exit 0]
+
+GATE RESULT: PASS
+```
+
+### Migration state on Postgres 16
+
+```text
+$ (cd backend && uv run alembic check)   # against Postgres 16
+INFO  [alembic.runtime.migration] Context impl PostgresqlImpl.
+INFO  [alembic.runtime.migration] Will assume transactional DDL.
+No new upgrade operations detected.
+[exit 0]
+$ (cd backend && uv run alembic current)
+21ce113cdea7 (head)
+```
+
+### Live smoke test against docker compose (Postgres, seeded synthetic data)
+
+```text
+$ curl -s -X POST 127.0.0.1:8000/api/v1/auth/login -d "username=admin@edupulse.example&password=<demo password>" | python (print token_type, expires_in)
+{'token_type': 'bearer', 'expires_in': 900}
+$ curl -s 127.0.0.1:8000/api/v1/auth/me -H "Authorization: Bearer <token>"
+{"id":1,"email":"admin@edupulse.example","full_name":"Demo Administrator","role":"admin","is_active":true,"teacher_id":null,"last_login_at":"2026-10-25T11:36:23.722297Z"}
+$ curl -s "127.0.0.1:8000/api/v1/classes?page_size=3" -H "Authorization: Bearer <token>" | python (print total, class names)
+15 ['10-A', '10-B', '10-C']
+$ for i in 1..6: curl -s -o /dev/null -w "%{http_code} " -X POST .../auth/login -d "username=admin@edupulse.example&password=wrong"
+401 401 401 401 401 429
+```
+
+Notes: the Postgres block filters Alembic's `Detected sequence`/`setting up autogenerate` INFO lines; the demo password and access token are replaced by placeholders in the smoke-test command lines. The rate-limit run shows five 401s then 429 because the API's default limit is 5 failures per minute per account.

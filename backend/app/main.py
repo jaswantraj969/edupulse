@@ -3,14 +3,17 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from app.api.routes import health
+from app.api.routes import auth, classes, health
 from app.core.config import Settings, get_settings
+from app.core.errors import install_error_handlers
+from app.core.rate_limit import LoginRateLimiter
 
 API_PREFIX = "/api/v1"
 
 
 def create_app(settings: Settings | None = None) -> FastAPI:
     settings = settings or get_settings()
+    settings.require_jwt_secret()  # fail fast at startup rather than on first login
     app = FastAPI(
         title="EduPulse API",
         version="0.1.0",
@@ -19,6 +22,10 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         docs_url=f"{API_PREFIX}/docs",
         redoc_url=f"{API_PREFIX}/redoc",
     )
+    app.state.settings = settings
+    app.state.login_limiter = LoginRateLimiter(
+        settings.login_rate_limit_attempts, settings.login_rate_limit_window_seconds
+    )
     app.add_middleware(
         CORSMiddleware,
         allow_origins=settings.cors_origins,
@@ -26,7 +33,9 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         allow_methods=["GET", "POST", "PUT", "PATCH", "DELETE"],
         allow_headers=["Authorization", "Content-Type", "X-Request-ID"],
     )
-    app.include_router(health.router, prefix=API_PREFIX)
+    install_error_handlers(app)
+    for router in (health.router, auth.router, classes.router):
+        app.include_router(router, prefix=API_PREFIX)
     return app
 
 

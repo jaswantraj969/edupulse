@@ -7,7 +7,7 @@ its output recorded in `REVIEW_PACKET.md`; it is not a claim of external verific
 |-----------|--------|--------|
 | M0 Skeleton | done | see git log (M0) |
 | M1 Data model + migrations | done | see git log (M1) |
-| M2 Auth + security | not started | — |
+| M2 Auth + security | done | see git log (M2) |
 | M3 Core API | not started | — |
 | M4 Frontend core | not started | — |
 | M5 ML early-warning | not started | — |
@@ -18,7 +18,7 @@ its output recorded in `REVIEW_PACKET.md`; it is not a claim of external verific
 
 ## Resume point
 
-Start of M2 (auth + security).
+Start of M3 (core API).
 
 ## Decisions
 
@@ -41,7 +41,15 @@ Start of M2 (auth + security).
 | D15 | M1 | `students.prior_failures` (0–3) stored on the student profile. | Needed for the early-warning feature that mirrors UCI `failures`; schools hold this from prior years. |
 | D16 | M1 | Seed uses Faker (fixed seed 20250901), `@edupulse.example` e-mails and fictional `+1-555-01xx` phones; hidden traits (never stored) drive consistent grades/attendance; demo password from `EDUPULSE_DEMO_PASSWORD`. | Synthetic, reproducible, clearly non-real demo data with realistic spread. |
 | D17 | M1 | Grade upper bound (`score <= max_score`) enforced in the service layer. | A cross-table CHECK is not possible in portable SQL. |
+| D18 | M2 | Access JWT (HS256, 15 min, claims sub/role/type/iat/nbf/exp/jti); the user's role and active flag are re-read from the database on every request. | Demotion or deactivation takes effect immediately; the token's role claim is informational only. |
+| D19 | M2 | Refresh tokens are opaque random strings stored as SHA-256 hashes, rotated on every use; presenting a revoked token revokes all of that user's sessions. | Server-side revocation for logout and theft detection without storing usable secrets. |
+| D20 | M2 | Refresh token returned in the JSON body (OAuth2-compatible) and set as an httpOnly, `SameSite=Strict` cookie scoped to `/api/v1/auth`; the SPA keeps the access token in memory only. | Browser clients never expose the refresh token to JavaScript; API clients can still use the body. |
+| D21 | M2 | Login rate limit: in-memory sliding window, 5 failures/min per (client IP, e-mail) and 20/min per client IP; success resets the account counter. | Meets the brief without extra infrastructure. Limitation: per-process state (see Deviations). |
+| D22 | M2 | Password policy: 12–128 characters with upper-case, lower-case and a digit. | NIST-style length emphasis with basic composition rules. |
+| D23 | M2 | Error shape `{"error": {"code", "message", "details"}}` for every error, including validation errors (`details` lists field/message/type). | One format for the frontend and the M7 hardening work. |
+| D24 | M2 | Unknown e-mail logins still run an argon2 verification against a dummy hash. | Prevents account enumeration through response timing. |
+| D25 | M2 | A teacher requesting an existing class/student outside their scope gets 403; a non-existent id gets 404. | Matches the brief's 403/404 distinction; ids are not secret. |
 
 ## Deviations and limitations
 
-None yet.
+- Login rate-limit state is per API process; a multi-instance deployment would need a shared store (e.g. Redis). (M2)

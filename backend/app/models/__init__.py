@@ -8,6 +8,7 @@ from app.models.academic import (
     TeachingAssignment,
     Term,
 )
+from app.models.auth import RefreshToken
 from app.models.enums import AssessmentKind, AttendanceStatus, Role, StudentStatus
 from app.models.people import Staff, Student, Teacher
 from app.models.records import Assessment, AttendanceRecord, Grade
@@ -22,6 +23,7 @@ __all__ = [
     "ClassGroup",
     "Enrolment",
     "Grade",
+    "RefreshToken",
     "Role",
     "Staff",
     "Student",
