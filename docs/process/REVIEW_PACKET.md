@@ -2050,3 +2050,342 @@ mobile-students.png 29638 bytes
 ```
 
 The '2 skipped' Playwright entries are e2e/screenshots.spec.ts, a documentation generator that only runs with SCREENSHOTS=1 (it asserts nothing about behaviour); no test was skipped or weakened. All screenshot files are below 300 KB (privacy scan threshold 1 MB).
+
+## M9 — Publish (2026-10-25)
+
+Scope: History privacy scan (scanner self-tested on planted findings first), private GitHub repository jaswantraj969/edupulse, CI to green, final gate, v1.0.0 tag and release, final report. Not made public.
+
+### Privacy scan of the full git history
+
+```text
+$ python scripts/privacy_scan.py --term <local username> --term <personal e-mail> --term <personal e-mail local part> --term <local folder name>
+commits scanned: 10
+file versions scanned: 294
+runtime terms checked: 4 (values not printed)
+RESULT: no findings
+[exit 0]
+
+$ python scripts/privacy_scan.py --term <POSTGRES_PASSWORD> --term <EDUPULSE_JWT_SECRET> --term <EDUPULSE_DEMO_PASSWORD>   # values from the local .env
+commits scanned: 10
+file versions scanned: 294
+runtime terms checked: 3 (values not printed)
+RESULT: no findings
+[exit 0]
+
+$ git ls-files | grep -iE "(^|/)\.env$"
+[exit 1 — 1 means no match]
+
+$ git config --local user.email
+214715227+jaswantraj969@users.noreply.github.com
+```
+
+### GitHub CI
+
+```text
+$ gh run view 40205988018 --json conclusion,jobs   # first CI run (commit 6818def)
+failure 6818def
+  backend: success
+  dependency-audit: failure
+  ml: failure
+  frontend: success
+  backend-postgres: success
+  e2e: success
+
+$ gh run view 40206393249 --json conclusion,jobs   # after fixes (commit c1a824a)
+success https://github.com/jaswantraj969/edupulse/actions/runs/40206393249 c1a824a
+  backend: success
+  dependency-audit: success
+  ml: success
+  frontend: success
+  backend-postgres: success
+  e2e: success
+
+$ gh repo view jaswantraj969/edupulse --json visibility
+PRIVATE
+```
+
+### Final local gate on the release code (commit c1a824a)
+
+```text
+$ (cd backend && uv run ruff check .)
+All checks passed!
+[exit 0]
+
+$ (cd backend && uv run ruff format --check .)
+77 files already formatted
+[exit 0]
+
+$ (cd backend && uv run mypy app tests)
+Success: no issues found in 76 source files
+
+[exit 0]
+
+$ (cd backend && uv run pytest --cov --cov-report=term-missing -p no:cacheprovider)
+........................................................................ [ 43%]
+
+........................................................................ [ 86%]
+
+......................                                                   [100%]
+
+=============================== tests coverage ================================
+
+______________ coverage: platform win32, python 3.12.13-final-0 _______________
+
+
+
+Name                            Stmts   Miss Branch BrPart  Cover   Missing
+
+---------------------------------------------------------------------------
+
+app\api\routes\assessments.py     130      1     42      2    98%   63, 177->176
+
+app\api\routes\auth.py             75      0     18      1    99%   136->142
+
+app\api\routes\catalog.py          42      0      4      1    98%   44->46
+
+app\api\routes\classes.py         152      0     40      1    99%   163->167
+
+app\api\routes\dashboard.py        55      0     20      3    96%   51->53, 73->75, 100->99
+
+app\api\routes\staff.py            64      0      6      3    96%   67->69, 69->71, 71->73
+
+app\api\routes\students.py        133      1     24      1    99%   89
+
+app\core\logging.py                35      1     10      1    96%   28
+
+app\seed.py                       206      3     62      2    98%   182-183, 452
+
+app\services\auth.py               49      1     14      2    95%   41, 92->exit
+
+app\services\csv_io.py            115      1     42      3    97%   55->57, 57->59, 89
+
+app\services\risk.py              150      2     30      2    98%   136, 214
+
+---------------------------------------------------------------------------
+
+TOTAL                            2647     10    442     22    99%
+
+
+
+39 files skipped due to complete coverage.
+
+166 passed in 51.09s
+
+[exit 0]
+
+$ (cd ml && uv run ruff check .)
+All checks passed!
+[exit 0]
+
+$ (cd ml && uv run ruff format --check .)
+16 files already formatted
+[exit 0]
+
+$ (cd ml && uv run mypy edupulse_ml tests)
+Success: no issues found in 14 source files
+
+[exit 0]
+
+$ (cd ml && uv run pytest --cov -p no:cacheprovider)
+...................                                                      [100%]
+
+=============================== tests coverage ================================
+
+______________ coverage: platform win32, python 3.12.13-final-0 _______________
+
+
+
+Name                       Stmts   Miss Branch BrPart  Cover
+
+------------------------------------------------------------
+
+edupulse_ml\__init__.py        1      0      0      0   100%
+
+edupulse_ml\data.py           57      5     18      1    89%
+
+edupulse_ml\evaluate.py       45      1     12      1    96%
+
+edupulse_ml\explain.py        17      0      2      0   100%
+
+edupulse_ml\export.py         14     14      2      0     0%
+
+edupulse_ml\features.py       21      0      0      0   100%
+
+edupulse_ml\report.py         34      0     14      1    98%
+
+edupulse_ml\reproduce.py      31      9     14      0    76%
+
+edupulse_ml\train.py         135      1     22      2    98%
+
+------------------------------------------------------------
+
+TOTAL                        355     30     84      5    91%
+
+19 passed in 35.64s
+
+[exit 0]
+
+$ (cd frontend && npm run lint)
+
+> edupulse-web@0.1.0 lint
+> eslint . --max-warnings=0
+
+[exit 0]
+
+$ (cd frontend && npm run typecheck)
+
+> edupulse-web@0.1.0 typecheck
+> tsc -b --noEmit
+
+[exit 0]
+
+$ (cd frontend && npm test)
+
+> edupulse-web@0.1.0 test
+> vitest run
+
+
+ RUN  v5.0.5 <repo>/frontend
+
+Not implemented: navigation to another Document
+
+ Test Files  8 passed (8)
+      Tests  39 passed (39)
+   Start at  20:36:32
+   Duration  7.90s (environment 59%, tests 20%, setup 10%, import 8%, transform 1%, worker 1%)
+
+[exit 0]
+
+$ (cd frontend && npm run build)
+
+> edupulse-web@0.1.0 build
+> tsc -b && vite build
+
+vite v8.3.5 building client environment for production...
+transforming...
+✓ 780 modules transformed.
+rendering chunks...
+computing gzip size...
+dist/index.html                              0.61 kB │ gzip:   0.36 kB
+dist/assets/index-r9nMhY3h.css              38.25 kB │ gzip:   7.81 kB
+dist/assets/coerce-CHtFiwVw.js               0.09 kB │ gzip:   0.10 kB
+dist/assets/queries-D8vtpeqI.js              0.51 kB │ gzip:   0.27 kB
+dist/assets/classSchema-D5ATFxNC.js          0.57 kB │ gzip:   0.33 kB
+dist/assets/DeferredRender-CGSRHVuI.js       0.61 kB │ gzip:   0.38 kB
+dist/assets/ClassPicker-CnXwr14W.js          0.66 kB │ gzip:   0.41 kB
+dist/assets/format-DqLuBCE3.js               0.66 kB │ gzip:   0.44 kB
+dist/assets/schemas-sqRQT-v-.js              0.93 kB │ gzip:   0.48 kB
+dist/assets/RecordFormDialog-DUfLLxzb.js     1.83 kB │ gzip:   0.98 kB
+dist/assets/LoginPage-CGeTjuvy.js            1.98 kB │ gzip:   1.02 kB
+dist/assets/AuditLogPage-E76Bxo7n.js         2.04 kB │ gzip:   1.04 kB
+dist/assets/ListToolbar-CwzkzizX.js          2.06 kB │ gzip:   0.94 kB
+dist/assets/useMutation-CPh81u1u.js          2.32 kB │ gzip:   0.97 kB
+dist/assets/RiskParts-BdheHJRv.js            2.59 kB │ gzip:   0.97 kB
+dist/assets/ClassesPage-D43GoEgN.js          2.79 kB │ gzip:   1.32 kB
+dist/assets/DashboardPage-iZphQuxR.js        2.99 kB │ gzip:   1.24 kB
+dist/assets/CsvImportDialog-CustKNbb.js      3.07 kB │ gzip:   1.32 kB
+dist/assets/DataTable-iyqIzl6l.js            3.21 kB │ gzip:   1.23 kB
+dist/assets/StudentsListPage-URdAojF8.js     3.24 kB │ gzip:   1.48 kB
+dist/assets/RiskListPage-DlkQftTd.js         3.56 kB │ gzip:   1.71 kB
+dist/assets/ClassDetailPage-BdDe4LZ9.js      4.61 kB │ gzip:   1.81 kB
+dist/assets/StaffPage-ClizUYX2.js            4.67 kB │ gzip:   1.97 kB
+dist/assets/TeachersPage-CGJQmGEl.js         4.86 kB │ gzip:   2.02 kB
+dist/assets/AttendancePage-C6co3xBa.js       4.91 kB │ gzip:   1.99 kB
+dist/assets/StudentDetailPage-CC5Lte0Q.js    5.14 kB │ gzip:   1.91 kB
+dist/assets/StudentForm-C9gakEZh.js          5.97 kB │ gzip:   2.22 kB
+dist/assets/StudentRiskPage-BycqRfBw.js      6.14 kB │ gzip:   2.26 kB
+dist/assets/RiskTrendCharts-oHxtjvnt.js      6.55 kB │ gzip:   2.75 kB
+dist/assets/GradesPage-BhRi_vq4.js           7.00 kB │ gzip:   2.69 kB
+dist/assets/useQuery-B86WbdLh.js             7.97 kB │ gzip:   2.94 kB
+dist/assets/jsx-runtime-Wy9s6hX0.js          8.91 kB │ gzip:   3.39 kB
+dist/assets/DashboardCharts-BKet6WYV.js     24.30 kB │ gzip:   8.17 kB
+dist/assets/Field-BARBEQsd.js              124.54 kB │ gzip:  37.53 kB
+dist/assets/useElementWidth-MynoTyFU.js    347.70 kB │ gzip: 101.49 kB
+dist/assets/index-DOKzYCNu.js              352.85 kB │ gzip: 110.93 kB
+
+✓ built in 760ms
+[exit 0]
+
+$ (cd frontend && npx playwright test --reporter=list)
+
+Running 10 tests using 1 worker
+
+(node:19860) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+[axe] light login: 29 rules passed; violations: none
+[axe] light dashboard: 32 rules passed; violations: none
+[axe] light students: 38 rules passed; violations: none
+[axe] light student detail: 42 rules passed; violations: none
+[axe] light student form: 35 rules passed; violations: none
+[axe] light teachers: 39 rules passed; violations: none
+[axe] light staff: 39 rules passed; violations: none
+[axe] light classes: 36 rules passed; violations: none
+[axe] light class detail: 34 rules passed; violations: none
+[axe] light attendance: 36 rules passed; violations: none
+[axe] light grades: 36 rules passed; violations: none
+[axe] light early warning: 42 rules passed; violations: none
+[axe] light student risk: 39 rules passed; violations: none
+[axe] light audit log: 38 rules passed; violations: none
+  ok  1 [mobile-375] › e2e\a11y.spec.ts:58:3 › no serious accessibility violations (light mode) (34.5s)
+[axe] dark login: 29 rules passed; violations: none
+[axe] dark dashboard: 32 rules passed; violations: none
+[axe] dark students: 38 rules passed; violations: none
+[axe] dark student detail: 42 rules passed; violations: none
+[axe] dark student form: 35 rules passed; violations: none
+[axe] dark teachers: 39 rules passed; violations: none
+[axe] dark staff: 39 rules passed; violations: none
+[axe] dark classes: 36 rules passed; violations: none
+[axe] dark class detail: 34 rules passed; violations: none
+[axe] dark attendance: 36 rules passed; violations: none
+[axe] dark grades: 36 rules passed; violations: none
+[axe] dark early warning: 42 rules passed; violations: none
+[axe] dark student risk: 39 rules passed; violations: none
+[axe] dark audit log: 38 rules passed; violations: none
+  ok  2 [mobile-375] › e2e\a11y.spec.ts:58:3 › no serious accessibility violations (dark mode) (33.3s)
+  ok  3 [mobile-375] › e2e\core-flow.spec.ts:8:1 › login → add student → mark attendance → enter grade (5.0s)
+  ok  4 [mobile-375] › e2e\early-warning.spec.ts:4:1 › teacher reviews early-warning scores; the views are audited (7.3s)
+  -   5 [mobile-375] › e2e\screenshots.spec.ts:28:1 › documentation screenshots
+(node:18240) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+[axe] light login: 29 rules passed; violations: none
+[axe] light dashboard: 30 rules passed; violations: none
+[axe] light students: 37 rules passed; violations: none
+[axe] light student detail: 40 rules passed; violations: none
+[axe] light student form: 33 rules passed; violations: none
+[axe] light teachers: 38 rules passed; violations: none
+[axe] light staff: 38 rules passed; violations: none
+[axe] light classes: 34 rules passed; violations: none
+[axe] light class detail: 32 rules passed; violations: none
+[axe] light attendance: 34 rules passed; violations: none
+[axe] light grades: 34 rules passed; violations: none
+[axe] light early warning: 41 rules passed; violations: none
+[axe] light student risk: 38 rules passed; violations: none
+[axe] light audit log: 37 rules passed; violations: none
+  ok  6 [desktop-1440] › e2e\a11y.spec.ts:58:3 › no serious accessibility violations (light mode) (33.5s)
+[axe] dark login: 29 rules passed; violations: none
+[axe] dark dashboard: 30 rules passed; violations: none
+[axe] dark students: 37 rules passed; violations: none
+[axe] dark student detail: 40 rules passed; violations: none
+[axe] dark student form: 33 rules passed; violations: none
+[axe] dark teachers: 38 rules passed; violations: none
+[axe] dark staff: 38 rules passed; violations: none
+[axe] dark classes: 34 rules passed; violations: none
+[axe] dark class detail: 32 rules passed; violations: none
+[axe] dark attendance: 34 rules passed; violations: none
+[axe] dark grades: 34 rules passed; violations: none
+[axe] dark early warning: 41 rules passed; violations: none
+[axe] dark student risk: 38 rules passed; violations: none
+[axe] dark audit log: 37 rules passed; violations: none
+  ok  7 [desktop-1440] › e2e\a11y.spec.ts:58:3 › no serious accessibility violations (dark mode) (33.4s)
+  ok  8 [desktop-1440] › e2e\core-flow.spec.ts:8:1 › login → add student → mark attendance → enter grade (5.6s)
+  ok  9 [desktop-1440] › e2e\early-warning.spec.ts:4:1 › teacher reviews early-warning scores; the views are audited (6.7s)
+  -  10 [desktop-1440] › e2e\screenshots.spec.ts:28:1 › documentation screenshots
+
+  2 skipped
+  8 passed (2.8m)
+[exit 0]
+
+GATE RESULT: PASS
+```
+
+First CI run failures and fixes: (1) dependency-audit — scripts/*.sh lacked the executable bit in git (Windows checkout); fixed with git update-index --chmod=+x. (2) ml reproduction — Linux reproduced the logistic-regression CV means within ~2e-5 of the Windows values (0.803047 vs 0.803069); chosen model, thresholds and all test metrics matched. The tolerance (1e-6) was stricter than the published precision; it is now 5e-4 (half of the last published digit), so every published 3-decimal number must still reproduce. The privacy-scan commit was amended once before the first push (its doc spelled out a path pattern literally); nothing had been pushed at that point.
