@@ -42,7 +42,7 @@ Log in as root (`ssh root@<server-ip>`), then:
 apt update && apt -y upgrade
 adduser --gecos "" edupulse                 # choose a password
 usermod -aG sudo edupulse
-rsync --archive --chown=edupulse:edupulse ~/.ssh /home/edupulse
+rsync --archive --chown=edupulse:edupulse ~/.ssh ~edupulse/
 
 # Firewall: only SSH, HTTP and HTTPS (443/udp is HTTP/3)
 ufw allow OpenSSH
