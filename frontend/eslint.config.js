@@ -15,7 +15,12 @@ export default tseslint.config(
     rules: {
       ...reactHooks.configs.recommended.rules,
       'react-refresh/only-export-components': ['warn', { allowConstantExport: true }],
-      '@typescript-eslint/no-unused-vars': ['error', { argsIgnorePattern: '^_' }],
+      '@typescript-eslint/no-unused-vars': ['error', { argsIgnorePattern: '^_', varsIgnorePattern: '^_' }],
     },
+  },
+  {
+    // Context modules export a provider with its hook; test helpers are never hot-reloaded.
+    files: ['src/lib/**/*.tsx', 'src/test/**/*.tsx', '**/__tests__/**/*.tsx'],
+    rules: { 'react-refresh/only-export-components': 'off' },
   },
 )

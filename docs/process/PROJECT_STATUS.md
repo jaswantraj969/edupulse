@@ -9,7 +9,7 @@ its output recorded in `REVIEW_PACKET.md`; it is not a claim of external verific
 | M1 Data model + migrations | done | see git log (M1) |
 | M2 Auth + security | done | see git log (M2) |
 | M3 Core API | done | see git log (M3) |
-| M4 Frontend core | not started | — |
+| M4 Frontend core | done | see git log (M4) |
 | M5 ML early-warning | not started | — |
 | M6 ML in the UI | not started | — |
 | M7 Hardening | not started | — |
@@ -18,7 +18,7 @@ its output recorded in `REVIEW_PACKET.md`; it is not a claim of external verific
 
 ## Resume point
 
-Start of M4 (frontend core).
+Start of M5 (ML early-warning module).
 
 ## Decisions
 
@@ -58,6 +58,14 @@ Start of M4 (frontend core).
 | D32 | M3 | Deletes that would destroy linked data are refused with 409 (teacher with assignments, class with students, assignment with assessments, subject in use); deleting a student or assessment cascades. An `IntegrityError` handler maps any remaining constraint race to 409 without echoing DB details. | Explicit, recoverable errors instead of silent cascades. |
 | D33 | M3 | Attendance dates must be inside the class's academic year and not in the future; weekends are allowed. | Some schools teach on Saturdays. |
 | D34 | M3 | Starlette's TestClient now prefers `httpx2`; the dev dependency switched from `httpx` to `httpx2`. | Removes the deprecation warning instead of suppressing it. |
+| D35 | M4 | Access token kept in module memory only; on load the SPA restores the session through `POST /auth/refresh` (cookie); any 401 triggers one shared refresh and a retry, else the user is signed out. | No token in localStorage (XSS exposure); seamless reloads. |
+| D36 | M4 | List state (page, sort, search, filters) lives in the URL query string. | Reload-safe, shareable, back-button friendly. |
+| D37 | M4 | Data tables render as `<table>` with `aria-sort` on md+ and as a card list below; only one is displayed at a time (`display:none` removes the other from the accessibility tree). | Usable at 360 px without horizontal scrolling. |
+| D38 | M4 | Own modal dialog component (portal, `role=dialog`, `aria-modal`, focus trap, Escape, focus restore) used for confirmations, forms and the mobile "More" menu. | Consistent keyboard behaviour; jsdom-testable. |
+| D39 | M4 | Routes are code-split with `React.lazy`; Recharts loads only with the dashboard charts. | Smaller first load for mobile (Lighthouse in M7). |
+| D40 | M4 | Chart series colours `#4f46e5` (light) / `#6366f1` (dark) validated with the dataviz palette checker against the actual card surfaces; single-series charts, tooltips, and a "Show data table" view. | WCAG non-text contrast ≥ 3:1 and identity never by colour alone. |
+| D41 | M4 | Frontend forms validate with Zod mirroring the API rules; server 409/422 field errors are mapped back onto the matching inputs. | Inline feedback without trusting the client. |
+| D42 | M4 | Playwright runs serially (one worker) against a seeded API; each run creates a uniquely named student and deletes it at the end. | Repeatable on a shared database. |
 
 ## Deviations and limitations
 

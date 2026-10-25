@@ -696,3 +696,213 @@ teacher TCH001: GET /dashboard -> 200 my_classes {'students': 134, 'teachers': 1
 ```
 
 The smoke test is a throw-away script (Python stdlib HTTP client) kept outside the repository; its printed output is pasted as produced.
+
+## M4 — Frontend core (2026-10-25)
+
+Scope: React SPA: login, responsive shell (sidebar on md+, bottom bar + 'More' dialog on mobile, skip link), dashboard (counts, weekly attendance trend, grade distribution; charts lazy-loaded with tooltips and data-table view), students list/detail/create/edit, teachers and staff CRUD dialogs, classes list/detail, bulk attendance marking, grade entry, CSV import (validate then import, per-row errors) and export, toasts, confirm dialogs, loading/empty/error states, light/dark/system theme. 32 Vitest component tests; Playwright flow login -> add student -> mark attendance -> enter grade (-> verify -> delete) at 375 px and 1440 px.
+
+### Gate output (scripts/gate.sh --e2e; Playwright via vite preview against the docker compose API)
+
+```text
+$ (cd backend && uv run ruff check .)
+All checks passed!
+[exit 0]
+
+$ (cd backend && uv run ruff format --check .)
+66 files already formatted
+[exit 0]
+
+$ (cd backend && uv run mypy app tests)
+Success: no issues found in 65 source files
+
+[exit 0]
+
+$ (cd backend && uv run pytest --cov --cov-report=term-missing -p no:cacheprovider)
+........................................................................ [ 53%]
+
+...............................................................          [100%]
+
+=============================== tests coverage ================================
+
+______________ coverage: platform win32, python 3.12.13-final-0 _______________
+
+
+
+Name                            Stmts   Miss Branch BrPart  Cover   Missing
+
+---------------------------------------------------------------------------
+
+app\api\routes\assessments.py     130      1     42      2    98%   63, 177->176
+
+app\api\routes\auth.py             75      0     18      1    99%   136->142
+
+app\api\routes\catalog.py          42      0      4      1    98%   44->46
+
+app\api\routes\classes.py         152      0     40      1    99%   163->167
+
+app\api\routes\dashboard.py        55      0     20      3    96%   51->53, 73->75, 100->99
+
+app\api\routes\staff.py            64      0      6      3    96%   67->69, 69->71, 71->73
+
+app\api\routes\students.py        133      1     24      1    99%   89
+
+app\core\errors.py                 40      1      0      0    98%   106
+
+app\seed.py                       206      3     62      2    98%   182-183, 452
+
+app\services\auth.py               49      1     14      2    95%   41, 92->exit
+
+app\services\csv_io.py            115      1     42      3    97%   55->57, 57->59, 89
+
+---------------------------------------------------------------------------
+
+TOTAL                            2149      8    368     19    99%
+
+
+
+32 files skipped due to complete coverage.
+
+135 passed in 63.35s (0:01:03)
+
+[exit 0]
+
+$ (cd ml && uv run ruff check .)
+All checks passed!
+[exit 0]
+
+$ (cd ml && uv run ruff format --check .)
+3 files already formatted
+[exit 0]
+
+$ (cd ml && uv run mypy edupulse_ml tests)
+Success: no issues found in 3 source files
+
+[exit 0]
+
+$ (cd ml && uv run pytest --cov -p no:cacheprovider)
+.                                                                        [100%]
+
+=============================== tests coverage ================================
+
+______________ coverage: platform win32, python 3.12.13-final-0 _______________
+
+
+
+Name                      Stmts   Miss Branch BrPart  Cover
+
+-----------------------------------------------------------
+
+edupulse_ml\__init__.py       1      0      0      0   100%
+
+-----------------------------------------------------------
+
+TOTAL                         1      0      0      0   100%
+
+1 passed in 0.15s
+
+[exit 0]
+
+$ (cd frontend && npm run lint)
+
+> edupulse-web@0.1.0 lint
+> eslint . --max-warnings=0
+
+[exit 0]
+
+$ (cd frontend && npm run typecheck)
+
+> edupulse-web@0.1.0 typecheck
+> tsc -b --noEmit
+
+[exit 0]
+
+$ (cd frontend && npm test)
+
+> edupulse-web@0.1.0 test
+> vitest run
+
+
+ RUN  v5.0.5 <repo>/frontend
+
+
+ Test Files  7 passed (7)
+      Tests  32 passed (32)
+   Start at  17:24:55
+   Duration  7.07s (environment 55%, tests 23%, setup 10%, import 8%, transform 2%, worker 1%)
+
+[exit 0]
+
+$ (cd frontend && npm run build)
+
+> edupulse-web@0.1.0 build
+> tsc -b && vite build
+
+vite v8.3.5 building client environment for production...
+transforming...
+✓ 772 modules transformed.
+rendering chunks...
+computing gzip size...
+dist/index.html                              0.61 kB │ gzip:   0.36 kB
+dist/assets/index-oVxrD7Xk.css              34.49 kB │ gzip:   7.12 kB
+dist/assets/coerce-CHtFiwVw.js               0.09 kB │ gzip:   0.10 kB
+dist/assets/queries-DErLqo5V.js              0.51 kB │ gzip:   0.26 kB
+dist/assets/classSchema-D5ATFxNC.js          0.57 kB │ gzip:   0.33 kB
+dist/assets/format-Dn2OGqmF.js               0.60 kB │ gzip:   0.41 kB
+dist/assets/ClassPicker-JJgPkOF6.js          0.66 kB │ gzip:   0.41 kB
+dist/assets/schemas-sqRQT-v-.js              0.93 kB │ gzip:   0.48 kB
+dist/assets/RecordFormDialog-DjHIYDUz.js     1.83 kB │ gzip:   0.98 kB
+dist/assets/LoginPage-Dcg8T4n5.js            1.98 kB │ gzip:   1.02 kB
+dist/assets/ListToolbar-C8S9lQit.js          2.04 kB │ gzip:   0.93 kB
+dist/assets/useMutation-BfMDPYYX.js          2.32 kB │ gzip:   0.97 kB
+dist/assets/DashboardPage-MzBcWvN9.js        2.75 kB │ gzip:   1.15 kB
+dist/assets/ClassesPage-DZ0S6l_J.js          2.79 kB │ gzip:   1.32 kB
+dist/assets/StudentsListPage-BYPDPOac.js     3.20 kB │ gzip:   1.46 kB
+dist/assets/ClassDetailPage-HDLkNKWX.js      4.61 kB │ gzip:   1.81 kB
+dist/assets/StaffPage-CfhHOVuz.js            4.62 kB │ gzip:   1.96 kB
+dist/assets/TeachersPage-_9RLvR8y.js         4.81 kB │ gzip:   2.00 kB
+dist/assets/AttendancePage-CAN4yRpo.js       4.91 kB │ gzip:   2.00 kB
+dist/assets/StudentDetailPage-BerDnpus.js    4.93 kB │ gzip:   1.85 kB
+dist/assets/StudentForm-C8LMOPcC.js          5.97 kB │ gzip:   2.22 kB
+dist/assets/DataTable-Bx_Kfqh5.js            6.12 kB │ gzip:   2.23 kB
+dist/assets/GradesPage-D1yQpdJz.js           7.00 kB │ gzip:   2.70 kB
+dist/assets/useQuery-Ca7SktmN.js             7.97 kB │ gzip:   2.94 kB
+dist/assets/jsx-runtime-Wy9s6hX0.js          8.91 kB │ gzip:   3.39 kB
+dist/assets/Field-BARBEQsd.js              124.54 kB │ gzip:  37.53 kB
+dist/assets/index-CGLlYuoW.js              351.69 kB │ gzip: 110.59 kB
+dist/assets/DashboardCharts-DrLWL0Pd.js    376.83 kB │ gzip: 108.06 kB
+
+✓ built in 572ms
+[exit 0]
+
+$ (cd frontend && npx playwright test --reporter=list)
+
+Running 2 tests using 1 worker
+
+(node:16460) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ok 1 [mobile-375] › e2e\core-flow.spec.ts:8:1 › login → add student → mark attendance → enter grade (4.9s)
+(node:19156) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ok 2 [desktop-1440] › e2e\core-flow.spec.ts:8:1 › login → add student → mark attendance → enter grade (5.7s)
+
+  2 passed (15.8s)
+[exit 0]
+
+GATE RESULT: PASS
+```
+
+### Playwright against the packaged app (docker compose: nginx web + api + Postgres)
+
+```text
+$ (cd frontend && E2E_BASE_URL=http://127.0.0.1:8088 npx playwright test --reporter=list)   # against docker compose (nginx + api + postgres)
+
+Running 2 tests using 1 worker
+
+  ok 1 [mobile-375] › e2e\core-flow.spec.ts:8:1 › login → add student → mark attendance → enter grade (5.4s)
+  ok 2 [desktop-1440] › e2e\core-flow.spec.ts:8:1 › login → add student → mark attendance → enter grade (5.7s)
+
+  2 passed (13.6s)
+[exit 0]
+```
+
+Bug found by the e2e run and fixed before this gate: saving attendance or grades did not invalidate the per-student queries, so a student page opened earlier showed stale 'No attendance recorded'. The first e2e run failed at that assertion; the fix is in AttendancePage/GradesPage (invalidate ['students']).
